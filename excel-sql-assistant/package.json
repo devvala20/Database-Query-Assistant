@@ -1,0 +1,38 @@
+{
+  "name": "excel-sql-assistant",
+  "version": "0.1.0",
+  "description": "Excel Office Add-in: plain-English SQL queries powered by AI (DuckDB-WASM + Claude)",
+  "private": true,
+  "scripts": {
+    "dev": "vite --port 3000",
+    "dev:https": "vite --port 3000 --https",
+    "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix",
+    "format": "prettier --write src/**/*.{ts,tsx,css}",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "eval": "vitest run tests/eval.test.ts"
+  },
+  "dependencies": {
+    "@duckdb/duckdb-wasm": "*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "@types/office-js": "*",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.8.0",
+    "@typescript-eslint/parser": "^8.8.0",
+    "@vitejs/plugin-react": "^4.3.2",
+    "eslint": "^9.11.1",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.8",
+    "vitest": "^2.1.1"
+  }
+}

@@ -1,0 +1,10 @@
+name = "excel-sql-assistant-proxy"
+main = "index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+# Set ALLOWED_ORIGINS to your Vercel deployment URL
+# e.g. "https://excel-sql-assistant.vercel.app"
+ALLOWED_ORIGINS = ""
+
+# Set the API key secret via:  wrangler secret put ANTHROPIC_API_KEY

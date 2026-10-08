@@ -1,0 +1,9 @@
+sku,product_name,category,unit_cost,stock_level,reorder_point
+SKU-001,Wireless Mouse,Electronics,14.50,150,30
+SKU-002,Mechanical Keyboard,Electronics,45.00,80,20
+SKU-003,Ergonomic Chair,Furniture,180.00,25,10
+SKU-004,Standing Desk,Furniture,320.00,12,5
+SKU-005,USB-C Hub,Electronics,22.00,210,50
+SKU-006,Notebook Set,Stationery,4.20,500,100
+SKU-007,Gel Pen Pack,Stationery,6.80,350,75
+SKU-008,Monitor Arm,Electronics,55.00,40,15

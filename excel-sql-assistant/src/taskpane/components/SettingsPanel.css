@@ -1,0 +1,216 @@
+/* SettingsPanel.css */
+
+.settings-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-panel__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+
+.settings-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-panel__section-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-dim);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.settings-panel__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text);
+  display: block;
+}
+
+.settings-panel__hint {
+  font-size: 10.5px;
+  color: var(--color-text-dim);
+  line-height: 1.4;
+  display: block;
+  margin-top: 2px;
+}
+
+/* Toggle row (checkbox) */
+.settings-panel__toggle-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.settings-panel__toggle-text {
+  flex: 1;
+}
+
+.settings-panel__checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Field */
+.settings-panel__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Mask input row */
+.settings-panel__mask-input-row {
+  display: flex;
+  gap: 6px;
+}
+
+.settings-panel__text-input {
+  flex: 1;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  padding: 5px 8px;
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.settings-panel__text-input:focus {
+  border-color: var(--color-primary);
+}
+
+.settings-panel__add-btn {
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: #fff;
+  font-size: 11px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: background var(--transition);
+}
+
+.settings-panel__add-btn:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.settings-panel__add-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Masked chips */
+.settings-panel__masked-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.settings-panel__masked-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  padding: 2px 8px;
+  font-size: 10.5px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.settings-panel__masked-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-dim);
+  font-size: 9px;
+  padding: 0;
+  line-height: 1;
+  transition: color var(--transition);
+}
+
+.settings-panel__masked-remove:hover {
+  color: var(--color-error);
+}
+
+/* Number input */
+.settings-panel__number-input {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  padding: 5px 8px;
+  outline: none;
+  width: 120px;
+  transition: border-color var(--transition);
+}
+
+.settings-panel__number-input:focus {
+  border-color: var(--color-primary);
+}
+
+/* Danger buttons */
+.settings-panel__button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-panel__danger-btn {
+  background: none;
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-sm);
+  color: var(--color-error);
+  font-size: 11px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: all var(--transition);
+}
+
+.settings-panel__danger-btn:hover {
+  background: var(--color-error-light);
+}
+
+/* Disclosure */
+.settings-panel__disclosure {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+
+.settings-panel__disclosure-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}

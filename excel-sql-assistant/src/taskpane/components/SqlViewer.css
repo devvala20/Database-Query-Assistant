@@ -1,0 +1,179 @@
+/* SqlViewer.css */
+
+.sql-viewer {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+/* Header */
+.sql-viewer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  background: var(--color-surface-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sql-viewer__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition);
+}
+
+.sql-viewer__toggle:hover {
+  color: var(--color-primary);
+}
+
+.sql-viewer__icon {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-primary);
+}
+
+.sql-viewer__chevron {
+  font-size: 8px;
+  margin-left: 2px;
+}
+
+/* Action buttons */
+.sql-viewer__actions {
+  display: flex;
+  gap: 4px;
+}
+
+.sql-viewer__action-btn {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: 10px;
+  padding: 2px 7px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.sql-viewer__action-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.sql-viewer__action-btn--primary {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.sql-viewer__action-btn--primary:hover {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+/* Body */
+.sql-viewer__body {
+  padding: 10px 12px;
+}
+
+/* Read-only code */
+.sql-viewer__code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: #a9b1d6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+/* Syntax highlighting */
+.sql-kw {
+  color: #7aa2f7;
+  font-weight: 600;
+}
+
+.sql-str {
+  color: #9ece6a;
+}
+
+/* Editor textarea */
+.sql-viewer__editor {
+  width: 100%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.7;
+  padding: 8px 10px;
+  resize: vertical;
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.sql-viewer__editor:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-light);
+}
+
+/* Edit action buttons */
+.sql-viewer__edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.sql-viewer__run-btn {
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: #fff;
+  font-size: 11px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  transition: background var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sql-viewer__run-btn:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.sql-viewer__run-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sql-viewer__cancel-btn {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: all var(--transition);
+}
+
+.sql-viewer__cancel-btn:hover {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' https://appsforoffice.microsoft.com https://ajax.aspnetcdn.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://appsforoffice.microsoft.com https://ajax.aspnetcdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https:; worker-src 'self' blob:;"
+    />
+    <title>Excel SQL Assistant</title>
+    <!-- Office.js must be loaded before any add-in code -->
+    <script
+      type="text/javascript"
+      src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"
+    ></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/taskpane/index.tsx"></script>
+  </body>
+</html>

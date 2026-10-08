@@ -1,0 +1,267 @@
+/* App.css — Task pane layout */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+/* ── Nav tabs (Phase 5) ─────────────────────────────────────── */
+.app__nav {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  flex-shrink: 0;
+}
+
+.app__nav-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-family: var(--font-sans);
+  padding: 7px 4px;
+  cursor: pointer;
+  transition: all var(--transition);
+  font-weight: 500;
+}
+
+.app__nav-btn:hover {
+  color: var(--color-text);
+}
+
+.app__nav-btn--active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+/* ── Header ─────────────────────────────────────────────────── */
+.app__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px 10px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.app__logo {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.app__title-group {
+  flex: 1;
+  min-width: 0;
+}
+
+.app__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.2;
+  background: linear-gradient(135deg, #6c63ff, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.app__subtitle {
+  font-size: 10px;
+  color: var(--color-text-dim);
+  display: block;
+}
+
+.app__header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Engine status dot */
+.app__engine-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background var(--transition);
+}
+
+.app__engine-dot--idle          { background: var(--color-text-dim); }
+.app__engine-dot--initialising  { background: var(--color-warning); animation: pulse 1s ease infinite; }
+.app__engine-dot--ready         { background: var(--color-success); }
+.app__engine-dot--error         { background: var(--color-error); }
+
+/* ── Engine banners ─────────────────────────────────────────── */
+.app__engine-banner {
+  padding: 6px 14px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.app__engine-banner--loading {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--color-warning);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.app__engine-banner--error {
+  background: var(--color-error-light);
+  color: var(--color-error);
+  border-bottom: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+/* ── Messages area ──────────────────────────────────────────── */
+.app__messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 10px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Loading row with cancel button (Phase 3+4) */
+.app__loading-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+}
+
+.app__loading-msg {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-style: italic;
+  flex: 1;
+}
+
+.app__cancel-btn {
+  background: none;
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-sm);
+  color: var(--color-error);
+  font-size: 10px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.app__cancel-btn:hover {
+  background: var(--color-error-light);
+}
+
+/* ── Empty state ────────────────────────────────────────── */
+.app__empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  padding: 32px 20px;
+  text-align: center;
+}
+
+.app__empty-icon {
+  font-size: 36px;
+}
+
+.app__empty-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.app__empty-btn {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: 12px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: all var(--transition);
+}
+
+.app__empty-btn:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+/* ── Typing indicator ───────────────────────────────────── */
+.app__typing-indicator {
+  display: flex;
+  gap: 4px;
+  padding: 10px 14px;
+  align-items: center;
+}
+
+.app__typing-indicator span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  animation: pulse 1.2s ease infinite;
+}
+
+.app__typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.app__typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+/* ── Suggestions ────────────────────────────────────────────── */
+.app__suggestions {
+  padding: 8px 12px;
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.app__suggestions-label {
+  font-size: 10px;
+  color: var(--color-text-dim);
+  margin-bottom: 6px;
+}
+
+.app__suggestions-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.app__suggestion-chip {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  color: var(--color-text-muted);
+  font-size: 10.5px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.app__suggestion-chip:hover:not(:disabled) {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.app__suggestion-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

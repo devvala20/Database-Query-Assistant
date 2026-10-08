@@ -1,0 +1,206 @@
+/* TablesPanel.css */
+
+.tables-panel {
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.tables-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tables-panel__title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+
+.tables-panel__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.tables-panel__btn {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: all var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tables-panel__btn:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+/* Empty state */
+.tables-panel__empty {
+  padding: 20px 16px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.tables-panel__empty-icon {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+/* Table list */
+.tables-panel__list {
+  list-style: none;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.tables-panel__item {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tables-panel__item:last-child {
+  border-bottom: none;
+}
+
+.tables-panel__item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+}
+
+.tables-panel__expand-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  flex: 1;
+  text-align: left;
+  min-width: 0;
+  transition: color var(--transition);
+}
+
+.tables-panel__expand-btn:hover {
+  color: var(--color-primary);
+}
+
+.tables-panel__chevron {
+  font-size: 9px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.tables-panel__table-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tables-panel__source-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.tables-panel__source-badge--csv {
+  background: rgba(108, 99, 255, 0.2);
+  color: var(--color-primary);
+  border: 1px solid rgba(108, 99, 255, 0.3);
+}
+
+.tables-panel__source-badge--workbook {
+  background: rgba(34, 211, 165, 0.15);
+  color: var(--color-success);
+  border: 1px solid rgba(34, 211, 165, 0.3);
+}
+
+.tables-panel__item-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tables-panel__row-count {
+  font-size: 10px;
+  color: var(--color-text-dim);
+}
+
+.tables-panel__drop-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-dim);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 11px;
+  border-radius: 3px;
+  line-height: 1;
+  transition: all var(--transition);
+}
+
+.tables-panel__drop-btn:hover {
+  background: var(--color-error-light);
+  color: var(--color-error);
+}
+
+/* Schema table */
+.tables-panel__schema {
+  padding: 0 12px 10px;
+}
+
+.tables-panel__schema-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.tables-panel__schema-table th {
+  text-align: left;
+  color: var(--color-text-dim);
+  font-weight: 500;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tables-panel__schema-table td {
+  padding: 3px 6px;
+  border-bottom: 1px solid rgba(46, 51, 72, 0.5);
+}
+
+.tables-panel__col-name {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+.tables-panel__col-type {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}

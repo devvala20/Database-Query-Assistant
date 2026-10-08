@@ -1,0 +1,132 @@
+/* ============================================================
+   Global CSS Design System — Excel SQL Assistant
+   Phase 1: Task pane shell styles
+   ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+/* ── CSS Variables ─────────────────────────────────────────── */
+:root {
+  --color-bg: #0f1117;
+  --color-surface: #1a1d27;
+  --color-surface-2: #22263a;
+  --color-border: #2e3348;
+  --color-border-light: #3d4260;
+
+  --color-primary: #6c63ff;
+  --color-primary-hover: #7c74ff;
+  --color-primary-light: rgba(108, 99, 255, 0.15);
+
+  --color-success: #22d3a5;
+  --color-success-light: rgba(34, 211, 165, 0.12);
+  --color-warning: #f59e0b;
+  --color-error: #f87171;
+  --color-error-light: rgba(248, 113, 113, 0.12);
+
+  --color-text: #e2e8f0;
+  --color-text-muted: #94a3b8;
+  --color-text-dim: #64748b;
+
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+
+  --transition: 0.18s ease;
+}
+
+/* ── Reset ─────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-light);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-dim);
+}
+
+/* ── Focus ring ────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ── Utility classes ───────────────────────────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Animations ────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-8px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+.animate-fade-in { animation: fadeIn 0.25s ease forwards; }
+.animate-spin    { animation: spin 0.8s linear infinite; }
+.animate-pulse   { animation: pulse 1.5s ease infinite; }
+.animate-slide-in { animation: slideIn 0.2s ease forwards; }

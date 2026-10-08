@@ -1,0 +1,9 @@
+emp_id,first_name,last_name,department,salary,hire_date,performance_rating
+1,Alice,Smith,Engineering,125000,2021-03-15,4.8
+2,Bob,Johnson,Marketing,85000,2022-06-01,4.2
+3,Carol,Williams,Engineering,140000,2019-11-20,4.9
+4,Dave,Brown,Sales,92000,2020-01-10,3.9
+5,Eve,Davis,Finance,105000,2018-08-05,4.5
+6,Frank,Miller,Sales,88000,2023-02-14,4.1
+7,Grace,Wilson,Engineering,118000,2022-09-01,4.6
+8,Hank,Taylor,Finance,98000,2021-12-01,4.0

@@ -1,0 +1,11 @@
+order_id,customer_name,region,order_date,revenue,quantity,discount
+101,Acme Corp,North,2024-01-15,1500.50,10,0.05
+102,Beta LLC,South,2024-01-18,2400.00,15,0.10
+103,Gamma Inc,North,2024-02-01,890.25,5,0.00
+104,Delta Co,East,2024-02-14,3200.00,20,0.15
+105,Acme Corp,North,2024-03-01,1200.00,8,0.05
+106,Epsilon Tech,West,2024-03-10,4500.75,25,0.20
+107,Beta LLC,South,2024-03-15,1100.00,7,0.00
+108,Zeta Retail,East,2024-04-02,950.00,6,0.05
+109,Delta Co,East,2024-04-20,2100.50,14,0.10
+110,Gamma Inc,West,2024-05-01,3100.00,18,0.05
