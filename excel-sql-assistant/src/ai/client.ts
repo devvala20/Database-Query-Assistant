@@ -28,9 +28,9 @@ export interface AiRequest {
   proxyUrl?: string;
   /** Optional proxy bearer token */
   proxyToken?: string;
-  /** AI provider: "anthropic" | "proxy" | "mock" */
-  aiProvider?: "anthropic" | "proxy" | "mock";
-  /** Model name (e.g. "claude-3-5-sonnet-20241022") */
+  /** AI provider: "gemini" | "groq" | "anthropic" | "proxy" | "mock" */
+  aiProvider?: "gemini" | "groq" | "anthropic" | "proxy" | "mock";
+  /** Model name (e.g. "gemini-1.5-flash", "llama-3.3-70b-versatile", "claude-3-5-sonnet-20241022") */
   modelName?: string;
 }
 
@@ -46,7 +46,7 @@ export interface AiResponse {
  * Send a question + schema to the AI and get back SQL + explanation.
  */
 export async function askAi(request: AiRequest): Promise<AiResponse> {
-  const provider = request.aiProvider ?? "anthropic";
+  const provider = request.aiProvider ?? "gemini";
   const apiKey =
     request.apiKey ||
     (typeof import.meta !== "undefined" ? import.meta.env?.VITE_ANTHROPIC_API_KEY : "") ||
@@ -59,7 +59,13 @@ export async function askAi(request: AiRequest): Promise<AiResponse> {
     request.proxyToken ||
     (typeof import.meta !== "undefined" ? import.meta.env?.VITE_PROXY_AUTH_TOKEN : "") ||
     "";
-  const modelName = request.modelName || "claude-3-5-sonnet-20241022";
+  const modelName =
+    request.modelName ||
+    (provider === "gemini"
+      ? "gemini-1.5-flash"
+      : provider === "groq"
+      ? "llama-3.1-8b-instant"
+      : "claude-3-5-sonnet-20241022");
 
   // Early check: if no schemas exist at all, return clarification immediately without network calls
   if (!request.schemas || request.schemas.length === 0) {
@@ -71,8 +77,9 @@ export async function askAi(request: AiRequest): Promise<AiResponse> {
     };
   }
 
-  // Force mock mode if explicitly requested OR if neither key nor proxy URL is configured
-  if (provider === "mock" || (provider === "anthropic" && !apiKey && !proxyUrl)) {
+  // Force mock mode if explicitly requested OR if no API key/proxy is provided
+  const needsKey = provider === "anthropic" || provider === "gemini" || provider === "groq";
+  if (provider === "mock" || (needsKey && !apiKey && !proxyUrl)) {
     await _simulateLatency();
     return _mockResponse(request);
   }
@@ -92,7 +99,126 @@ export async function askAi(request: AiRequest): Promise<AiResponse> {
         : undefined,
   });
 
-  // ── 1. Direct Anthropic Claude API Call ───────────────────────────────────────
+  // ── 1. Google Gemini API (100% Free at aistudio.google.com) ──────────────────
+  if (provider === "gemini" && apiKey) {
+    const geminiHistory = proxyBody.history.map((turn) => ({
+      role: turn.role === "assistant" ? "model" : "user",
+      parts: [{ text: turn.content }],
+    }));
+
+    const contents = [
+      {
+        role: "user",
+        parts: [{ text: `Available tables:\n\n${proxyBody.schema}` }],
+      },
+      {
+        role: "model",
+        parts: [
+          {
+            text: "Understood. I will generate DuckDB SQL using only these tables and columns.",
+          },
+        ],
+      },
+      ...geminiHistory,
+      {
+        role: "user",
+        parts: [{ text: proxyBody.question }],
+      },
+    ];
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      modelName
+    )}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system_instruction: {
+          parts: [{ text: proxyBody.systemPrompt }],
+        },
+        contents,
+        generationConfig: {
+          response_mime_type: "application/json",
+          temperature: 0.1,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      throw new Error(`Google Gemini API error (${response.status}): ${errText}`);
+    }
+
+    const data = (await response.json()) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    return _parseModelJsonResponse(text);
+  }
+
+  // ── 2. Groq Free API (100% Free at console.groq.com) ─────────────────────────
+  if (provider === "groq" && apiKey) {
+    const messages = [
+      { role: "system", content: proxyBody.systemPrompt },
+      { role: "user", content: `Available tables:\n\n${proxyBody.schema}` },
+      {
+        role: "assistant",
+        content: "Understood. I will generate DuckDB SQL using only these tables and columns.",
+      },
+      ...proxyBody.history,
+      { role: "user", content: proxyBody.question },
+    ];
+
+    // Ensure we avoid the retired llama-3.3-70b-versatile model ID
+    let targetModel =
+      modelName === "llama-3.3-70b-versatile" ? "llama-3.1-8b-instant" : modelName;
+
+    let response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: targetModel,
+        messages,
+        response_format: { type: "json_object" },
+        temperature: 0.1,
+      }),
+    });
+
+    // Auto-fallback: If model is not found on user's tier, retry with llama-3.1-8b-instant
+    if (!response.ok && response.status === 404 && targetModel !== "llama-3.1-8b-instant") {
+      targetModel = "llama-3.1-8b-instant";
+      response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: targetModel,
+          messages,
+          response_format: { type: "json_object" },
+          temperature: 0.1,
+        }),
+      });
+    }
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      throw new Error(`Groq API error (${response.status}): ${errText}`);
+    }
+
+    const data = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const text = data.choices?.[0]?.message?.content ?? "";
+    return _parseModelJsonResponse(text);
+  }
+
+  // ── 3. Direct Anthropic Claude API Call ───────────────────────────────────────
   if (provider === "anthropic" && apiKey) {
     const messages: Array<{ role: string; content: string }> = [
       {
@@ -284,9 +410,10 @@ function _mockResponse(request: AiRequest): AiResponse {
     sql,
     explanation,
     assumptions: [
-      `ℹ️ [Mock Mode] No Anthropic API Key or Proxy configured.`,
-      `To generate real SQL from plain English using Claude, open ⚙️ Settings and enter your Anthropic API Key.`,
-      `You can also run custom SQL directly anytime by typing "SELECT ...".`,
+      `ℹ️ [Mock Mode] No API Key configured for ${request.aiProvider || "AI"}.`,
+      `To generate real SQL from plain English, open ⚙️ Settings and enter an API Key.`,
+      `Tip: Google Gemini and Groq provide 100% FREE API keys with no credit card required!`,
+      `You can also run custom SQL queries directly anytime by typing "SELECT ...".`,
     ],
     clarification: null,
   };

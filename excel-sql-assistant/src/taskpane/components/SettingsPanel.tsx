@@ -66,23 +66,168 @@ export default function SettingsPanel() {
             id="ai-provider-select"
             className="settings-panel__select"
             value={settings.aiProvider}
-            onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-              updateSetting("aiProvider", e.target.value as AppSettings["aiProvider"])
-            }
+            onChange={(e: ChangeEvent<HTMLSelectElement>) => {
+              const nextProvider = e.target.value as AppSettings["aiProvider"];
+              let nextModel = settings.modelName;
+              if (nextProvider === "gemini") nextModel = "gemini-1.5-flash";
+              else if (nextProvider === "groq") nextModel = "llama-3.1-8b-instant";
+              else if (nextProvider === "anthropic") nextModel = "claude-3-5-sonnet-20241022";
+
+              dispatch({
+                type: "UPDATE_SETTINGS",
+                settings: { aiProvider: nextProvider, modelName: nextModel },
+              });
+            }}
           >
-            <option value="anthropic">Anthropic Claude (Direct from Browser)</option>
+            <option value="gemini">Google Gemini (100% Free - Recommended)</option>
+            <option value="groq">Groq Llama 3.3 (100% Free - Ultra Fast)</option>
+            <option value="anthropic">Anthropic Claude (Paid API)</option>
             <option value="proxy">Custom Backend Proxy (Cloudflare / Azure)</option>
             <option value="mock">Offline Mock Mode (Simulation)</option>
           </select>
           <span className="settings-panel__hint">
-            {settings.aiProvider === "anthropic"
-              ? "Calls Claude directly from your browser using your Anthropic API key."
+            {settings.aiProvider === "gemini"
+              ? "⚡ Google Gemini Free Tier: Up to 1,500 requests/day at zero cost with no credit card required."
+              : settings.aiProvider === "groq"
+              ? "🚀 Groq Cloud: Free ultra-fast Llama 3 inference with zero credit card required."
+              : settings.aiProvider === "anthropic"
+              ? "🧠 Anthropic Claude: High precision text-to-SQL reasoning directly from your browser."
               : settings.aiProvider === "proxy"
-              ? "Routes requests through a secure proxy server."
-              : "Generates offline simulated queries without calling any external API."}
+              ? "🛡️ Custom Proxy: Routes schema and questions through your organization's backend proxy."
+              : "💻 Offline Mock: Generates simulated queries without making network calls."}
           </span>
         </div>
 
+        {/* Gemini Settings (100% Free) */}
+        {settings.aiProvider === "gemini" && (
+          <>
+            <div className="settings-panel__field">
+              <label className="settings-panel__label" htmlFor="gemini-key-input">
+                Google Gemini API Key (Free)
+              </label>
+              <div className="settings-panel__mask-input-row">
+                <input
+                  id="gemini-key-input"
+                  type={showApiKey ? "text" : "password"}
+                  className="settings-panel__text-input"
+                  value={settings.apiKey}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                    updateSetting("apiKey", e.target.value.trim())
+                  }
+                  placeholder="AIzaSy..."
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <button
+                  type="button"
+                  className="settings-panel__toggle-key-btn"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  title={showApiKey ? "Hide API key" : "Show API key"}
+                  aria-label={showApiKey ? "Hide API key" : "Show API key"}
+                >
+                  {showApiKey ? "🙈" : "👁️"}
+                </button>
+              </div>
+              <span className="settings-panel__hint">
+                👉 Get a 100% free key instantly at{" "}
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: "var(--color-primary)", textDecoration: "underline" }}
+                >
+                  aistudio.google.com/app/apikey
+                </a>{" "}
+                (Sign in with your Google account, no credit card needed).
+              </span>
+            </div>
+
+            <div className="settings-panel__field">
+              <label className="settings-panel__label" htmlFor="gemini-model-select">
+                Gemini Model
+              </label>
+              <select
+                id="gemini-model-select"
+                className="settings-panel__select"
+                value={settings.modelName}
+                onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                  updateSetting("modelName", e.target.value)
+                }
+              >
+                <option value="gemini-1.5-flash">Gemini 1.5 Flash (Fast, accurate & free)</option>
+                <option value="gemini-2.0-flash">Gemini 2.0 Flash (Next-gen free model)</option>
+                <option value="gemini-1.5-pro">Gemini 1.5 Pro (Deep analytical reasoning)</option>
+              </select>
+            </div>
+          </>
+        )}
+
+        {/* Groq Settings (100% Free) */}
+        {settings.aiProvider === "groq" && (
+          <>
+            <div className="settings-panel__field">
+              <label className="settings-panel__label" htmlFor="groq-key-input">
+                Groq API Key (Free)
+              </label>
+              <div className="settings-panel__mask-input-row">
+                <input
+                  id="groq-key-input"
+                  type={showApiKey ? "text" : "password"}
+                  className="settings-panel__text-input"
+                  value={settings.apiKey}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                    updateSetting("apiKey", e.target.value.trim())
+                  }
+                  placeholder="gsk_..."
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <button
+                  type="button"
+                  className="settings-panel__toggle-key-btn"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  title={showApiKey ? "Hide API key" : "Show API key"}
+                  aria-label={showApiKey ? "Hide API key" : "Show API key"}
+                >
+                  {showApiKey ? "🙈" : "👁️"}
+                </button>
+              </div>
+              <span className="settings-panel__hint">
+                👉 Get a 100% free key at{" "}
+                <a
+                  href="https://console.groq.com/keys"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: "var(--color-primary)", textDecoration: "underline" }}
+                >
+                  console.groq.com/keys
+                </a>{" "}
+                (No credit card required).
+              </span>
+            </div>
+
+            <div className="settings-panel__field">
+              <label className="settings-panel__label" htmlFor="groq-model-select">
+                Groq Model
+              </label>
+              <select
+                id="groq-model-select"
+                className="settings-panel__select"
+                value={settings.modelName}
+                onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                  updateSetting("modelName", e.target.value)
+                }
+              >
+                <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant (Recommended — Active on all free tiers)</option>
+                <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
+                <option value="openai/gpt-oss-120b">GPT-OSS 120B</option>
+                <option value="qwen/qwen3.6-27b">Qwen 3.6 27B</option>
+              </select>
+            </div>
+          </>
+        )}
+
+        {/* Anthropic Claude Settings */}
         {settings.aiProvider === "anthropic" && (
           <>
             <div className="settings-panel__field">
@@ -137,6 +282,7 @@ export default function SettingsPanel() {
           </>
         )}
 
+        {/* Proxy Settings */}
         {settings.aiProvider === "proxy" && (
           <>
             <div className="settings-panel__field">
@@ -183,20 +329,20 @@ export default function SettingsPanel() {
           className={`settings-panel__status-badge settings-panel__status-badge--${
             settings.aiProvider === "mock"
               ? "mock"
-              : settings.aiProvider === "anthropic"
-              ? settings.apiKey ? "ready" : "warning"
-              : settings.proxyUrl ? "ready" : "warning"
+              : settings.apiKey || (settings.aiProvider === "proxy" && settings.proxyUrl)
+              ? "ready"
+              : "warning"
           }`}
           role="status"
         >
           {settings.aiProvider === "mock" && (
             <span>⚪ <strong>Mock Mode Active:</strong> Returning canned offline queries without calling external APIs.</span>
           )}
-          {settings.aiProvider === "anthropic" && settings.apiKey && (
-            <span>🟢 <strong>Ready:</strong> Live Claude calls configured with model <em>{settings.modelName}</em>.</span>
+          {settings.aiProvider !== "mock" && settings.aiProvider !== "proxy" && settings.apiKey && (
+            <span>🟢 <strong>Ready:</strong> Live {settings.aiProvider.toUpperCase()} calls active using model <em>{settings.modelName}</em>.</span>
           )}
-          {settings.aiProvider === "anthropic" && !settings.apiKey && (
-            <span>🟡 <strong>API Key Needed:</strong> Enter your Anthropic key above. Until configured, mock fallback is used.</span>
+          {settings.aiProvider !== "mock" && settings.aiProvider !== "proxy" && !settings.apiKey && (
+            <span>🟡 <strong>API Key Needed:</strong> Enter your {settings.aiProvider.toUpperCase()} key above. Until entered, mock simulation fallback is used.</span>
           )}
           {settings.aiProvider === "proxy" && settings.proxyUrl && (
             <span>🟢 <strong>Ready:</strong> Requests routed to <em>{settings.proxyUrl}</em>.</span>

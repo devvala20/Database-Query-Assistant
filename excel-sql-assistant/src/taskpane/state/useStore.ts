@@ -73,14 +73,14 @@ export interface AppSettings {
   /** Default write mode for result sheets */
   defaultWriteMode: "new" | "replace" | "append";
   /** AI Provider / mode */
-  aiProvider: "anthropic" | "proxy" | "mock";
-  /** Anthropic Claude API Key (sk-ant-...) */
+  aiProvider: "gemini" | "groq" | "anthropic" | "proxy" | "mock";
+  /** API Key for the active provider */
   apiKey: string;
   /** Custom proxy URL (e.g. Cloudflare Worker or Azure Function) */
   proxyUrl: string;
   /** Optional proxy bearer token */
   proxyToken: string;
-  /** Claude model name */
+  /** Model name */
   modelName: string;
 }
 
@@ -90,11 +90,11 @@ const DEFAULT_SETTINGS: AppSettings = {
   previewLimit: 1000,
   timeoutMs: 30_000,
   defaultWriteMode: "new",
-  aiProvider: "anthropic",
+  aiProvider: "gemini",
   apiKey: "",
   proxyUrl: "",
   proxyToken: "",
-  modelName: "claude-3-5-sonnet-20241022",
+  modelName: "gemini-1.5-flash",
 };
 
 function loadSavedSettings(): AppSettings {
