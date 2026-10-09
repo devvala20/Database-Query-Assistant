@@ -1,11 +1,10 @@
 /**
- * client.ts — AI Client (Phase 4: fully wired)
+ * client.ts — AI Client (Phase 4: fully wired for Direct Claude + Proxy + Mock)
  *
- * Calls the backend proxy which adds the API key and calls Claude.
- * MOCK_MODE is still available for local testing without a backend.
- *
- * Set VITE_PROXY_URL in .env.local to your deployed proxy URL.
- * Set VITE_MOCK_AI=true to force mock mode regardless of MOCK_MODE constant.
+ * Calls:
+ *   1. Anthropic Claude API directly (using API key from Settings or .env)
+ *   2. Custom Backend Proxy (Cloudflare Worker or Azure Function)
+ *   3. Mock mode fallback if no API key / proxy is configured
  */
 
 import type { TableSchema } from "../data/schema";
@@ -23,6 +22,16 @@ export interface AiRequest {
   errorMessage?: string;
   /** Optional sample values per column (user opt-in) */
   sampleValues?: Record<string, string[]>;
+  /** Optional Anthropic API Key (from Settings or .env) */
+  apiKey?: string;
+  /** Optional custom proxy URL */
+  proxyUrl?: string;
+  /** Optional proxy bearer token */
+  proxyToken?: string;
+  /** AI provider: "anthropic" | "proxy" | "mock" */
+  aiProvider?: "anthropic" | "proxy" | "mock";
+  /** Model name (e.g. "claude-3-5-sonnet-20241022") */
+  modelName?: string;
 }
 
 export interface AiResponse {
@@ -33,62 +42,184 @@ export interface AiResponse {
   clarification: string | null;
 }
 
-// ─── Mock mode ────────────────────────────────────────────────────────────────
-// Flip to false when the backend proxy is deployed.
-// Override with env var VITE_MOCK_AI=true for CI/testing.
-const MOCK_MODE: boolean =
-  import.meta.env.VITE_MOCK_AI === "true" ? true : true;
-//                                                  ^^^^
-//                    Change this `true` → `false` when proxy is ready
-
 /**
  * Send a question + schema to the AI and get back SQL + explanation.
  */
 export async function askAi(request: AiRequest): Promise<AiResponse> {
-  if (MOCK_MODE) {
+  const provider = request.aiProvider ?? "anthropic";
+  const apiKey =
+    request.apiKey ||
+    (typeof import.meta !== "undefined" ? import.meta.env?.VITE_ANTHROPIC_API_KEY : "") ||
+    "";
+  const proxyUrl =
+    request.proxyUrl ||
+    (typeof import.meta !== "undefined" ? import.meta.env?.VITE_PROXY_URL : "") ||
+    "";
+  const proxyToken =
+    request.proxyToken ||
+    (typeof import.meta !== "undefined" ? import.meta.env?.VITE_PROXY_AUTH_TOKEN : "") ||
+    "";
+  const modelName = request.modelName || "claude-3-5-sonnet-20241022";
+
+  // Early check: if no schemas exist at all, return clarification immediately without network calls
+  if (!request.schemas || request.schemas.length === 0) {
+    return {
+      sql: "",
+      explanation: "No tables are currently loaded.",
+      assumptions: [],
+      clarification: "Please load a CSV or an Excel range first before asking questions.",
+    };
+  }
+
+  // Force mock mode if explicitly requested OR if neither key nor proxy URL is configured
+  if (provider === "mock" || (provider === "anthropic" && !apiKey && !proxyUrl)) {
     await _simulateLatency();
     return _mockResponse(request);
   }
 
-  // ── Real proxy call ──────────────────────────────────────────────────────
   const proxyBody = buildProxyRequest({
     question: request.question,
     schemas: request.schemas,
     history: request.history ?? [],
     sampleValues: request.sampleValues,
-    repair: request.previousSql && request.errorMessage
-      ? {
-          failedSql: request.previousSql,
-          errorMessage: request.errorMessage,
-          attemptNumber: 1, // repairLoop increments this externally
-        }
-      : undefined,
+    repair:
+      request.previousSql && request.errorMessage
+        ? {
+            failedSql: request.previousSql,
+            errorMessage: request.errorMessage,
+            attemptNumber: 1,
+          }
+        : undefined,
   });
 
-  const proxyUrl = import.meta.env.VITE_PROXY_URL ?? "/api/ask";
-  const proxyAuthToken = import.meta.env.VITE_PROXY_AUTH_TOKEN;
+  // ── 1. Direct Anthropic Claude API Call ───────────────────────────────────────
+  if (provider === "anthropic" && apiKey) {
+    const messages: Array<{ role: string; content: string }> = [
+      {
+        role: "user",
+        content: `Available tables:\n\n${proxyBody.schema}`,
+      },
+      {
+        role: "assistant",
+        content: "Understood. I will generate DuckDB SQL using only these tables and columns.",
+      },
+      ...proxyBody.history,
+      {
+        role: "user",
+        content: proxyBody.question,
+      },
+    ];
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (proxyAuthToken) {
-    headers["Authorization"] = `Bearer ${proxyAuthToken}`;
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: modelName,
+        max_tokens: 1024,
+        system: proxyBody.systemPrompt,
+        messages,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      throw new Error(`Anthropic Claude API error (${response.status}): ${errText}`);
+    }
+
+    const data = (await response.json()) as {
+      content: Array<{ type: string; text: string }>;
+    };
+
+    const text = data.content?.[0]?.text ?? "";
+    return _parseModelJsonResponse(text);
   }
 
-  const response = await fetch(proxyUrl, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(proxyBody),
-  });
+  // ── 2. Backend Proxy Call (Cloudflare / Azure / Custom) ──────────────────────
+  if (proxyUrl) {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (proxyToken) {
+      headers["Authorization"] = `Bearer ${proxyToken}`;
+    }
 
-  if (!response.ok) {
-    const text = await response.text().catch(() => "(no body)");
-    throw new Error(`AI proxy error ${response.status}: ${text}`);
+    const response = await fetch(proxyUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(proxyBody),
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "(no body)");
+      throw new Error(`AI proxy error ${response.status}: ${text}`);
+    }
+
+    const json: unknown = await response.json();
+    _validateAiResponse(json);
+    return json as AiResponse;
   }
 
-  const json: unknown = await response.json();
-  _validateAiResponse(json);
-  return json as AiResponse;
+  // Fallback
+  return _mockResponse(request);
+}
+
+// ─── Response parser & validator ──────────────────────────────────────────────
+
+function _parseModelJsonResponse(rawText: string): AiResponse {
+  let cleaned = rawText.trim();
+  // Strip Markdown code block fences (```json ... ``` or ```sql ... ```)
+  const match = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (match) {
+    cleaned = match[1].trim();
+  }
+
+  try {
+    const parsed = JSON.parse(cleaned);
+    _validateAiResponse(parsed);
+    return parsed as AiResponse;
+  } catch (err) {
+    // If Claude returned raw SQL instead of the JSON wrapper, salvage it
+    if (/^\s*(SELECT|WITH|DESCRIBE)\b/i.test(cleaned)) {
+      return {
+        sql: cleaned,
+        explanation: "Generated SQL query for your question.",
+        assumptions: [],
+        clarification: null,
+      };
+    }
+    // Extract any JSON object embedded in text
+    const jsonBraceMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonBraceMatch) {
+      try {
+        const parsed = JSON.parse(jsonBraceMatch[0]);
+        _validateAiResponse(parsed);
+        return parsed as AiResponse;
+      } catch {}
+    }
+    throw new Error(
+      `Could not parse JSON from AI response: ${err instanceof Error ? err.message : String(err)}\nRaw text: ${cleaned.slice(0, 300)}`
+    );
+  }
+}
+
+function _validateAiResponse(json: unknown): asserts json is AiResponse {
+  if (typeof json !== "object" || json === null) {
+    throw new Error("AI response is not a JSON object.");
+  }
+  const r = json as Record<string, unknown>;
+  if (typeof r.sql !== "string")
+    throw new Error("AI response missing or invalid 'sql' field.");
+  if (typeof r.explanation !== "string")
+    throw new Error("AI response missing or invalid 'explanation' field.");
+  if (!Array.isArray(r.assumptions))
+    throw new Error("AI response missing or invalid 'assumptions' field.");
+  if (r.clarification !== null && typeof r.clarification !== "string")
+    throw new Error("AI response 'clarification' must be string or null.");
 }
 
 // ─── Mock implementation ──────────────────────────────────────────────────────
@@ -113,7 +244,6 @@ function _mockResponse(request: AiRequest): AiResponse {
   const cols = firstTable.columns;
   const question = request.question.toLowerCase();
 
-  // Simulate a few query patterns so mock mode is more useful
   let sql: string;
   let explanation: string;
 
@@ -138,7 +268,11 @@ function _mockResponse(request: AiRequest): AiResponse {
       sql = `SELECT * FROM "${tableName}" LIMIT 10`;
       explanation = `Returns the first 10 rows from "${tableName}".`;
     }
-  } else if (question.includes("column") || question.includes("schema") || question.includes("field")) {
+  } else if (
+    question.includes("column") ||
+    question.includes("schema") ||
+    question.includes("field")
+  ) {
     sql = `DESCRIBE "${tableName}"`;
     explanation = `Shows all column names and data types in the "${tableName}" table.`;
   } else {
@@ -150,26 +284,10 @@ function _mockResponse(request: AiRequest): AiResponse {
     sql,
     explanation,
     assumptions: [
-      `[Mock mode] No real AI call was made. Deploy the backend proxy to enable Claude.`,
-      `Question received: "${request.question}"`,
+      `ℹ️ [Mock Mode] No Anthropic API Key or Proxy configured.`,
+      `To generate real SQL from plain English using Claude, open ⚙️ Settings and enter your Anthropic API Key.`,
+      `You can also run custom SQL directly anytime by typing "SELECT ...".`,
     ],
     clarification: null,
   };
-}
-
-// ─── Response validation ──────────────────────────────────────────────────────
-
-function _validateAiResponse(json: unknown): asserts json is AiResponse {
-  if (typeof json !== "object" || json === null) {
-    throw new Error("AI response is not a JSON object.");
-  }
-  const r = json as Record<string, unknown>;
-  if (typeof r.sql !== "string")
-    throw new Error("AI response missing or invalid 'sql' field.");
-  if (typeof r.explanation !== "string")
-    throw new Error("AI response missing or invalid 'explanation' field.");
-  if (!Array.isArray(r.assumptions))
-    throw new Error("AI response missing or invalid 'assumptions' field.");
-  if (r.clarification !== null && typeof r.clarification !== "string")
-    throw new Error("AI response 'clarification' must be string or null.");
 }

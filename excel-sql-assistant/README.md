@@ -108,26 +108,35 @@ All 10 project phases from the original engineering specification are 100% compl
 - **Pick or Drag-and-Drop CSV**: Click **📂 CSV** to select any `.csv`, `.tsv`, or `.txt` file. DuckDB reads the buffer natively with automated delimiter, header, and encoding detection.
 - **Excel Ranges & Tables**: Select any tabular range in your worksheet and click **📋 Range** to register it as a DuckDB table.
 
-### 2. Conversational Text-to-SQL
-- Ask natural language questions like:
+### 2. Conversational Text-to-SQL & Direct SQL Execution
+- **Ask Natural Language Questions**:
   - *"What was our total revenue in Q1 2024?"*
   - *"Show the top 5 customers by order count."*
   - *"Which products have stock below their reorder point?"*
-- Follow-up naturally: *"Now filter that for the East region"* (conversation context preserves prior queries).
+  - Follow-up naturally: *"Now filter that for the East region"* (conversation context preserves prior queries).
+- **Run Custom SQL Directly**:
+  - Simply type any SQL query starting with `SELECT`, `WITH`, `DESCRIBE`, `EXPLAIN`, or `SHOW` directly in the chat input.
+  - The engine recognizes SQL statements automatically, executes them directly in DuckDB-WASM, and presents the formatted results in seconds without passing through the AI.
 
-### 3. Clear Explanations & Assumptions
+### 3. AI Providers & Key Configuration (⚙️ Settings Tab)
+- **Anthropic Claude (Direct from Browser)**: Enter your Anthropic API key (`sk-ant-...`) in **⚙️ Settings → AI Model & Connection**. The key is stored safely in your local browser (`localStorage`) and never shared.
+- **Model Selection**: Switch easily between Claude 3.5 Sonnet (`claude-3-5-sonnet-20241022`), Claude 3.5 Haiku, and Claude 3 Opus.
+- **Custom Proxy**: Enterprise deployments can route requests through a Cloudflare Worker or Azure Function proxy.
+- **Offline Mock Mode**: Simulate queries without API keys for testing or offline demonstrations.
+
+### 4. Clear Explanations & Assumptions
 - Non-technical users see plain-English explanations first: *"Groups orders by region and sums revenue, returning the top 5."*
 - Model assumptions are highlighted: *"Treated 'net_sales' as revenue minus discounts."*
 - Ambiguous questions prompt clarifications rather than erroneous guesses.
 
-### 4. Interactive SQL Viewer (`SqlViewer.tsx`)
+### 5. Interactive SQL Viewer (`SqlViewer.tsx`)
 - Syntax-highlighted collapsible SQL code block.
 - **Edit Mode**: Modify SQL syntax directly in the task pane.
 - **Run Edited SQL**: Executes user-modified queries through the safety guard.
 - **Explain This SQL**: Asks the AI to explain pasted or custom SQL in plain English.
 - **Copy**: One-click clipboard copy.
 
-### 5. Multi-Mode Results Export (`ExportMenu.tsx`)
+### 6. Multi-Mode Results Export (`ExportMenu.tsx`)
 - **New Sheet**: Creates a clean, uniquely named worksheet.
 - **Replace Existing**: Overwrites the previous query result sheet.
 - **Append**: Appends incremental records to an existing sheet.

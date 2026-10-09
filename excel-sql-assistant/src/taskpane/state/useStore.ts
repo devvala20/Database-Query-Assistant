@@ -72,6 +72,16 @@ export interface AppSettings {
   timeoutMs: number;
   /** Default write mode for result sheets */
   defaultWriteMode: "new" | "replace" | "append";
+  /** AI Provider / mode */
+  aiProvider: "anthropic" | "proxy" | "mock";
+  /** Anthropic Claude API Key (sk-ant-...) */
+  apiKey: string;
+  /** Custom proxy URL (e.g. Cloudflare Worker or Azure Function) */
+  proxyUrl: string;
+  /** Optional proxy bearer token */
+  proxyToken: string;
+  /** Claude model name */
+  modelName: string;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -80,7 +90,22 @@ const DEFAULT_SETTINGS: AppSettings = {
   previewLimit: 1000,
   timeoutMs: 30_000,
   defaultWriteMode: "new",
+  aiProvider: "anthropic",
+  apiKey: "",
+  proxyUrl: "",
+  proxyToken: "",
+  modelName: "claude-3-5-sonnet-20241022",
 };
+
+function loadSavedSettings(): AppSettings {
+  try {
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem("excel_sql_settings") : null;
+    if (raw) {
+      return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    }
+  } catch {}
+  return DEFAULT_SETTINGS;
+}
 
 // ─── State shape ──────────────────────────────────────────────────────────────
 
@@ -110,7 +135,7 @@ const initialState: AppState = {
   engineStatus: "idle",
   queryHistory: [],
   activeCancelToken: null,
-  settings: DEFAULT_SETTINGS,
+  settings: loadSavedSettings(),
   activePanel: "chat",
 };
 
@@ -191,8 +216,15 @@ function reducer(state: AppState, action: Action): AppState {
       };
     case "SET_CANCEL_TOKEN":
       return { ...state, activeCancelToken: action.token };
-    case "UPDATE_SETTINGS":
-      return { ...state, settings: { ...state.settings, ...action.settings } };
+    case "UPDATE_SETTINGS": {
+      const nextSettings = { ...state.settings, ...action.settings };
+      try {
+        if (typeof localStorage !== "undefined") {
+          localStorage.setItem("excel_sql_settings", JSON.stringify(nextSettings));
+        }
+      } catch {}
+      return { ...state, settings: nextSettings };
+    }
     case "SET_ACTIVE_PANEL":
       return { ...state, activePanel: action.panel };
     default:

@@ -189,7 +189,18 @@ function TaskPane() {
           timeoutMs: state.settings.timeoutMs,
           cancelToken,
         });
-        const writeResult = await writeResultsToSheet(result, sql);
+        const writeResult = await writeResultsToSheet(result, sql, {
+          mode: state.settings.defaultWriteMode,
+          sql,
+          writeSqlNote: true,
+          onProgress: (written, total) => {
+            dispatch({
+              type: "SET_LOADING",
+              loading: true,
+              message: `Writing to Excel… ${Math.round((written / total) * 100)}%`,
+            });
+          },
+        });
         const sheetName = writeResult.sheetName;
         dispatch({
           type: "ADD_MESSAGE",
@@ -203,7 +214,7 @@ function TaskPane() {
               resultSheetName: sheetName,
               rowCount: result.rowCount,
               fullRowCount: result.fullRowCount,
-              elapsedMs: result.elapsedMs,
+              elapsedMs: writeResult.elapsedMs,
               truncated: result.truncated,
               resultData: {
                 columns: result.columns,
@@ -213,6 +224,12 @@ function TaskPane() {
               },
             }
           ),
+        });
+
+        // Add to query history (Phase 5 & 6)
+        dispatch({
+          type: "ADD_HISTORY",
+          entry: createHistoryEntry("Custom SQL", sql, "Direct SQL execution (no AI involved).", sheetName),
         });
       } catch (err) {
         const msg =
@@ -250,6 +267,13 @@ function TaskPane() {
   const handleQuestion = useCallback(
     async (question: string) => {
       if (state.isLoading || state.engineStatus !== "ready") return;
+
+      const trimmed = question.trim();
+      // If the user typed a raw SQL query (e.g. SELECT ..., WITH ..., DESCRIBE ...), execute it directly
+      if (/^\s*(SELECT|WITH|DESCRIBE|SHOW|PRAGMA|EXPLAIN\s+(QUERY\s+PLAN|ANALYZE|SELECT))\b/i.test(trimmed)) {
+        void handleRunSqlDirectly(trimmed);
+        return;
+      }
 
       dispatch({
         type: "ADD_MESSAGE",
@@ -291,6 +315,11 @@ function TaskPane() {
             schemas: schemasForAi,
             history: conversationHistory.current,
             sampleValues,
+            apiKey: state.settings.apiKey,
+            proxyUrl: state.settings.proxyUrl,
+            proxyToken: state.settings.proxyToken,
+            aiProvider: state.settings.aiProvider,
+            modelName: state.settings.modelName,
           },
           (attempt, _sql) => {
             if (attempt > 1) {
@@ -564,8 +593,8 @@ function TaskPane() {
               state.engineStatus !== "ready"
                 ? "Waiting for engine…"
                 : hasNoTables
-                ? "Load a CSV first, then ask a question…"
-                : "Ask a question about your data…"
+                ? "Load a CSV first, then ask questions or run SQL…"
+                : "Ask in English or type SQL (SELECT…)"
             }
           />
         </>
