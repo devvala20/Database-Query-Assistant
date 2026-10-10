@@ -10,9 +10,14 @@ import "./TablesPanel.css";
 interface Props {
   onLoadCsv: () => void;
   onLoadWorkbookRange: () => void;
+  onOpenBackups?: () => void;
 }
 
-export default function TablesPanel({ onLoadCsv, onLoadWorkbookRange }: Props) {
+export default function TablesPanel({
+  onLoadCsv,
+  onLoadWorkbookRange,
+  onOpenBackups,
+}: Props) {
   const { state, dispatch } = useStore();
   const [expandedTable, setExpandedTable] = useState<string | null>(null);
 
@@ -35,6 +40,17 @@ export default function TablesPanel({ onLoadCsv, onLoadWorkbookRange }: Props) {
       <div className="tables-panel__header">
         <span className="tables-panel__title">Loaded Tables</span>
         <div className="tables-panel__actions">
+          {onOpenBackups && (
+            <button
+              id="open-backups-btn"
+              className="tables-panel__btn"
+              onClick={onOpenBackups}
+              title="View Recycle Bin & Preserved Data"
+              aria-label="View Recycle Bin"
+            >
+              ♻️ Recycle Bin
+            </button>
+          )}
           <button
             id="load-csv-btn"
             className="tables-panel__btn"

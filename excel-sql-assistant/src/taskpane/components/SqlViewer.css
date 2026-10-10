@@ -90,9 +90,9 @@
 /* Read-only code */
 .sql-viewer__code {
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.7;
-  color: #a9b1d6;
+  color: #1e293b;
   white-space: pre-wrap;
   word-break: break-word;
   overflow-x: auto;
@@ -100,12 +100,13 @@
 
 /* Syntax highlighting */
 .sql-kw {
-  color: #7aa2f7;
-  font-weight: 600;
+  color: #2563eb;
+  font-weight: 700;
 }
 
 .sql-str {
-  color: #9ece6a;
+  color: #16a34a;
+  font-weight: 500;
 }
 
 /* Editor textarea */

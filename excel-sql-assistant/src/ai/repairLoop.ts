@@ -8,7 +8,9 @@
  */
 
 import { askAi, type AiRequest, type AiResponse } from "./client";
-import { safeRunQuery, type SafeQueryResult, QueryGuardError } from "../sql/runner";
+import { safeRunQuery, type SafeQueryResult, QueryGuardError, QueryCancelledError } from "../sql/runner";
+import { isMutationQuery } from "../sql/guard";
+import { createTableSnapshot } from "../data/backupManager";
 
 export const MAX_REPAIR_ATTEMPTS = 2;
 
@@ -33,16 +35,12 @@ export class MaxRepairAttemptsError extends Error {
 
 /**
  * Run the AI → guard → execute loop with automatic self-repair on SQL errors.
- *
- * Flow:
- *   1. Call AI to get SQL
- *   2. Run safeRunQuery (includes guard check)
- *   3. If DuckDB errors: send {sql, error} back to AI for repair (max 2x)
- *   4. Return on success, throw MaxRepairAttemptsError after exhausting retries
+ * Prompts user confirmation and preserves safety snapshots if mutation is detected.
  */
 export async function runWithRepair(
   request: AiRequest,
-  onAttempt?: (attempt: number, sql: string) => void
+  onAttempt?: (attempt: number, sql: string) => void,
+  onConfirmMutation?: (sql: string, mutationType: string, targetTable?: string) => Promise<boolean>
 ): Promise<RepairLoopResult> {
   // Initial AI call
   let response = await askAi(request);
@@ -53,14 +51,7 @@ export async function runWithRepair(
     // Return a dummy result — caller must check response.clarification
     return {
       response,
-      result: {
-        columns: [],
-        rows: [],
-        rowCount: 0,
-        fullRowCount: 0,
-        elapsedMs: 0,
-        truncated: false,
-      },
+      result: _emptyResult(),
       attemptsUsed: 0,
     };
   }
@@ -72,6 +63,24 @@ export async function runWithRepair(
   for (let attempt = 1; attempt <= MAX_REPAIR_ATTEMPTS + 1; attempt++) {
     attemptsUsed = attempt;
     onAttempt?.(attempt, lastSql);
+
+    // If mutation, ask confirmation and snapshot table before execution
+    const mutation = isMutationQuery(lastSql);
+    if (mutation.isMutation) {
+      if (onConfirmMutation) {
+        const confirmed = await onConfirmMutation(
+          lastSql,
+          mutation.type || "MODIFICATION",
+          mutation.targetTable
+        );
+        if (!confirmed) {
+          throw new QueryCancelledError();
+        }
+      }
+      if (mutation.targetTable) {
+        await createTableSnapshot(mutation.targetTable, mutation.type || "MUTATION", lastSql);
+      }
+    }
 
     try {
       const result = await safeRunQuery(lastSql);

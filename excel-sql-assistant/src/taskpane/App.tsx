@@ -11,7 +11,7 @@
  *   Phase 6: Editable SQL, Explain-this-SQL, assumptions, truncation warnings
  */
 
-import { useEffect, useRef, useCallback, type ChangeEvent } from "react";
+import { useState, useEffect, useRef, useCallback, type ChangeEvent } from "react";
 import {
   StoreProvider,
   useStore,
@@ -23,8 +23,12 @@ import ChatInput from "./components/ChatInput";
 import TablesPanel from "./components/TablesPanel";
 import HistoryPanel from "./components/HistoryPanel";
 import SettingsPanel from "./components/SettingsPanel";
+import ConfirmationModal from "./components/ConfirmationModal";
+import BackupsModal from "./components/BackupsModal";
 import { initEngine } from "../sql/engine";
 import { safeRunQuery, CancelToken, QueryGuardError, QueryTimeoutError, QueryCancelledError } from "../sql/runner";
+import { isMutationQuery } from "../sql/guard";
+import { createTableSnapshot } from "../data/backupManager";
 import { loadCsvFile } from "../data/csvLoader";
 import { loadSelectedRange } from "../data/workbookReader";
 import { filterMaskedColumns, collectSampleValues } from "../data/schema";
@@ -43,64 +47,59 @@ function TaskPane() {
   // Conversation history for AI follow-up support (Phase 4)
   const conversationHistory = useRef<ConversationTurn[]>([]);
 
+  // Confirmation & Backups modal states
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    sql: string;
+    operationType: string;
+    targetTable?: string;
+    resolve: (confirmed: boolean) => void;
+  } | null>(null);
+
+  const [showBackupsModal, setShowBackupsModal] = useState(false);
+
+  const confirmMutation = useCallback(
+    (sql: string, operationType: string, targetTable?: string): Promise<boolean> => {
+      return new Promise((resolve) => {
+        setPendingConfirm({
+          sql,
+          operationType,
+          targetTable,
+          resolve,
+        });
+      });
+    },
+    []
+  );
+
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [state.messages]);
 
-  // ── Phase 0: DuckDB engine init ─────────────────────────────────────────────
+  // ── DuckDB engine init (silent unless error) ───────────────────────────────
   useEffect(() => {
     async function init() {
       dispatch({ type: "SET_ENGINE_STATUS", status: "initialising" });
-      dispatch({
-        type: "ADD_MESSAGE",
-        message: createMessage("system", "🔧 Initialising DuckDB-WASM engine…"),
-      });
       try {
         await initEngine();
         dispatch({ type: "SET_ENGINE_STATUS", status: "ready" });
-        dispatch({
-          type: "ADD_MESSAGE",
-          message: createMessage(
-            "system",
-            "✅ DuckDB-WASM loaded. Load a CSV or Excel range to get started."
-          ),
-        });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         dispatch({ type: "SET_ENGINE_STATUS", status: "error", error: msg });
-        dispatch({
-          type: "ADD_MESSAGE",
-          message: createMessage(
-            "error",
-            `❌ DuckDB failed to load: ${msg}\n\nThis may be a browser restriction. Try Excel on the Web.`
-          ),
-        });
       }
     }
     void init();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Phase 2: CSV loading ────────────────────────────────────────────────────
+  // ── CSV loading ────────────────────────────────────────────────────────────
   async function handleCsvFilePicked(file: File) {
     dispatch({ type: "SET_LOADING", loading: true, message: `Loading ${file.name}…` });
-    dispatch({
-      type: "ADD_MESSAGE",
-      message: createMessage("system", `📂 Loading "${file.name}"…`),
-    });
     try {
       const loadedTable = await loadCsvFile(file);
       dispatch({ type: "ADD_CSV_TABLE", table: loadedTable });
       telemetry.track({
         type: "csv_loaded",
         rowCountBucket: telemetry.toBucket(loadedTable.rowCount),
-      });
-      dispatch({
-        type: "ADD_MESSAGE",
-        message: createMessage(
-          "system",
-          `✅ Loaded "${loadedTable.tableName}" — ${loadedTable.rowCount.toLocaleString()} rows · ${loadedTable.schema.columns.length} columns`
-        ),
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -123,26 +122,15 @@ function TaskPane() {
     e.target.value = "";
   }
 
-  // ── Phase 2: Workbook range loading ────────────────────────────────────────
+  // ── Workbook range loading ─────────────────────────────────────────────────
   async function handleLoadWorkbookRange() {
     dispatch({ type: "SET_LOADING", loading: true, message: "Reading Excel range…" });
-    dispatch({
-      type: "ADD_MESSAGE",
-      message: createMessage("system", "📋 Reading selected Excel range…"),
-    });
     try {
       const info = await loadSelectedRange();
       dispatch({ type: "ADD_WORKBOOK_TABLE", table: info });
       telemetry.track({
         type: "range_loaded",
         rowCountBucket: telemetry.toBucket(info.rowCount),
-      });
-      dispatch({
-        type: "ADD_MESSAGE",
-        message: createMessage(
-          "system",
-          `✅ Loaded "${info.tableName}" from ${info.sourceLabel} — ${info.rowCount.toLocaleString()} rows`
-        ),
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -158,26 +146,37 @@ function TaskPane() {
     }
   }
 
-  // ── Phase 3+4: Cancel running query ────────────────────────────────────────
+  // ── Cancel running query ───────────────────────────────────────────────────
   function handleCancel() {
     state.activeCancelToken?.cancel();
     dispatch({ type: "SET_CANCEL_TOKEN", token: null });
     dispatch({ type: "SET_LOADING", loading: false });
-    dispatch({
-      type: "ADD_MESSAGE",
-      message: createMessage("system", "⛔ Query cancelled."),
-    });
   }
 
-  // ── Phase 6: Run SQL directly (from editor or history) ─────────────────────
+  // ── Run SQL directly (from editor or history) with Mutation Safeguard ──────
   const handleRunSqlDirectly = useCallback(
     async (sql: string) => {
       if (state.isLoading || state.engineStatus !== "ready") return;
 
+      const mutation = isMutationQuery(sql);
+      if (mutation.isMutation) {
+        const confirmed = await confirmMutation(
+          sql,
+          mutation.type || "MODIFICATION",
+          mutation.targetTable
+        );
+        if (!confirmed) {
+          return;
+        }
+        if (mutation.targetTable) {
+          await createTableSnapshot(mutation.targetTable, mutation.type || "MUTATION", sql);
+        }
+      }
+
       dispatch({ type: "SET_LOADING", loading: true, message: "Running SQL…" });
       dispatch({
         type: "ADD_MESSAGE",
-        message: createMessage("user", `▶ Run SQL directly:\n\`\`\`\n${sql}\n\`\`\``),
+        message: createMessage("user", sql),
       });
 
       const cancelToken = new CancelToken();
@@ -202,15 +201,22 @@ function TaskPane() {
           },
         });
         const sheetName = writeResult.sheetName;
+
+        const explanation = mutation.isMutation
+          ? `Executed ${mutation.type || "operation"} successfully on ${mutation.targetTable ? `"${mutation.targetTable}"` : "table"}. A safety snapshot is preserved in the Recycle Bin for 7 days.`
+          : "Direct SQL execution.";
+
         dispatch({
           type: "ADD_MESSAGE",
           message: createMessage(
             "assistant",
-            `Query executed successfully — ${result.rowCount.toLocaleString()} rows.`,
+            explanation,
             {
               sql,
-              explanation: "Direct SQL execution (no AI involved).",
-              assumptions: [],
+              explanation,
+              assumptions: mutation.isMutation && mutation.targetTable
+                ? [`Safety backup created for "${mutation.targetTable}" (retained in Recycle Bin for 7 days)`]
+                : [],
               resultSheetName: sheetName,
               rowCount: result.rowCount,
               fullRowCount: result.fullRowCount,
@@ -226,10 +232,10 @@ function TaskPane() {
           ),
         });
 
-        // Add to query history (Phase 5 & 6)
+        // Add to query history
         dispatch({
           type: "ADD_HISTORY",
-          entry: createHistoryEntry("Custom SQL", sql, "Direct SQL execution (no AI involved).", sheetName),
+          entry: createHistoryEntry("Custom SQL", sql, explanation, sheetName),
         });
       } catch (err) {
         const msg =
@@ -251,7 +257,7 @@ function TaskPane() {
         dispatch({ type: "SET_CANCEL_TOKEN", token: null });
       }
     },
-    [state, dispatch]
+    [state, dispatch, confirmMutation]
   );
 
   // ── Phase 6: "Explain this SQL" ────────────────────────────────────────────
@@ -325,7 +331,8 @@ function TaskPane() {
             if (attempt > 1) {
               dispatch({ type: "SET_LOADING", loading: true, message: `Repairing SQL (attempt ${attempt})…` });
             }
-          }
+          },
+          confirmMutation
         );
 
         // Model asked for clarification
@@ -501,6 +508,7 @@ function TaskPane() {
         <TablesPanel
           onLoadCsv={openFilePicker}
           onLoadWorkbookRange={handleLoadWorkbookRange}
+          onOpenBackups={() => setShowBackupsModal(true)}
         />
       )}
 
@@ -608,6 +616,38 @@ function TaskPane() {
       )}
 
       {state.activePanel === "settings" && <SettingsPanel />}
+
+      {/* Confirmation Modal for DML/DDL mutations */}
+      {pendingConfirm && (
+        <ConfirmationModal
+          sql={pendingConfirm.sql}
+          operationType={pendingConfirm.operationType}
+          targetTable={pendingConfirm.targetTable}
+          onConfirm={() => {
+            const resolver = pendingConfirm.resolve;
+            setPendingConfirm(null);
+            resolver(true);
+          }}
+          onCancel={() => {
+            const resolver = pendingConfirm.resolve;
+            setPendingConfirm(null);
+            resolver(false);
+          }}
+        />
+      )}
+
+      {/* 7-Day Safety Backups / Recycle Bin Modal */}
+      {showBackupsModal && (
+        <BackupsModal
+          onClose={() => setShowBackupsModal(false)}
+          onRestored={(tableName, rowCount) => {
+            dispatch({
+              type: "ADD_MESSAGE",
+              message: createMessage("assistant", `Restored table "${tableName}" (${rowCount} rows) from safety backup.`),
+            });
+          }}
+        />
+      )}
     </div>
   );
 }

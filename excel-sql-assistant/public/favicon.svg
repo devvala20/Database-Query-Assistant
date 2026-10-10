@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <!-- Background subtle warm beige gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#f5efe6" />
+    </linearGradient>
+
+    <!-- Vibrant Ocean Blue to Emerald Green -->
+    <linearGradient id="blueGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+
+    <!-- Warm Energy Orange -->
+    <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fb923c" />
+      <stop offset="100%" stop-color="#ea580c" />
+    </linearGradient>
+
+    <!-- Soft shadow filter -->
+    <filter id="softShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#ea580c" flood-opacity="0.2" />
+    </filter>
+  </defs>
+
+  <!-- Squircle container with beige border -->
+  <rect x="4" y="4" width="120" height="120" rx="30" fill="url(#bgGrad)" stroke="#e2d8c3" stroke-width="3" />
+
+  <!-- Database Cylinders (Blue & Green) -->
+  <!-- Top disk -->
+  <ellipse cx="64" cy="36" rx="36" ry="12" fill="url(#blueGreen)" />
+  <!-- Middle cylinder -->
+  <path d="M 28 36 V 56 C 28 64 100 64 100 56 V 36" fill="none" stroke="#2563eb" stroke-width="4" stroke-linecap="round" />
+  <!-- Bottom cylinder -->
+  <path d="M 28 56 V 78 C 28 86 100 86 100 78 V 56" fill="none" stroke="#10b981" stroke-width="4" stroke-linecap="round" />
+
+  <!-- Query / Execution Badge (Warm Orange Lightning Bolt) -->
+  <g filter="url(#softShadow)">
+    <circle cx="88" cy="88" r="24" fill="url(#orangeGrad)" stroke="#ffffff" stroke-width="3" />
+    <path d="M 91 74 L 78 88 L 87 88 L 84 102 L 98 88 L 89 88 Z" fill="#ffffff" />
+  </g>
+</svg>

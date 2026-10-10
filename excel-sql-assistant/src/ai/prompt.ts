@@ -46,7 +46,7 @@ Rules:
      "assumptions": string[],
      "clarification": string | null
    }
-3. "sql" must be a single SELECT statement (or WITH ... SELECT). Never modify data.
+3. "sql" must be a valid DuckDB statement (SELECT, WITH, INSERT, UPDATE, DELETE, CREATE TABLE, ALTER TABLE, DROP TABLE) directly addressing the user's request.
 4. Use only tables and columns listed in the schema. Quote all identifiers that contain spaces, special characters, or are reserved words using double-quotes.
 5. "explanation" must be in plain English for someone who does not know SQL. Start with a verb ("Returns...", "Shows...", "Groups...").
 6. "assumptions" is an array of short notes when you made a choice the user didn't specify (e.g., "Treated 'revenue' as unit_price × quantity"). Empty array if none.

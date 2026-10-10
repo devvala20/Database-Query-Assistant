@@ -1,123 +1,157 @@
 /**
- * guard.ts — Phase 3: SELECT-only SQL validation (upgraded)
+ * guard.ts — SQL Safety & Mutation Detection Guard
  *
- * Validates that AI-generated SQL is a safe, read-only SELECT before execution.
- * This is a critical security boundary: AI output is untrusted input.
- *
- * Strategy: multi-layer defence
- *   1. Structural check — must start with SELECT or WITH
- *   2. Blocked keyword/function list — regex patterns for all dangerous constructs
- *   3. Multi-statement check — no semicolons separating statements
- *   4. Depth limit — prevents deeply nested subqueries used for bypass
+ * Enforces safety boundaries while enabling full SQL execution:
+ *   - Allows all standard SQL operations: SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, TRUNCATE
+ *   - Accurately detects mutations (DELETE, UPDATE, DROP, etc.) to trigger confirmation & backup preservation
+ *   - Strictly blocks host escape vectors: system(), shell(), getenv(), ATTACH, LOAD, INSTALL
  */
 
-/** Result of a guard check */
 export interface GuardResult {
   safe: boolean;
   reason?: string;
+  isMutation?: boolean;
+  mutationType?: "DELETE" | "UPDATE" | "DROP" | "TRUNCATE" | "INSERT" | "ALTER" | "CREATE";
+  targetTable?: string;
 }
 
 /**
- * Dangerous keywords and DuckDB-specific file-reading functions that must never
- * appear in SQL we execute. DuckDB-WASM can read host files via read_csv etc.
- * — these must be blocked even inside SELECT.
+ * Host compromise vectors and unauthorized file access functions
+ * that must NEVER run inside DuckDB-WASM.
  */
-const BLOCKED_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
-  { pattern: /\bDROP\b/i,         label: "DROP" },
-  { pattern: /\bDELETE\b/i,       label: "DELETE" },
-  { pattern: /\bINSERT\b/i,       label: "INSERT" },
-  { pattern: /\bUPDATE\b/i,       label: "UPDATE" },
-  { pattern: /\bCREATE\b/i,       label: "CREATE" },
-  { pattern: /\bALTER\b/i,        label: "ALTER" },
-  { pattern: /\bTRUNCATE\b/i,     label: "TRUNCATE" },
-  { pattern: /\bCOPY\b/i,         label: "COPY" },
-  { pattern: /\bINSTALL\b/i,      label: "INSTALL" },
-  { pattern: /\bLOAD\b/i,         label: "LOAD" },
-  { pattern: /\bATTACH\b/i,       label: "ATTACH" },
-  { pattern: /\bDETACH\b/i,       label: "DETACH" },
-  { pattern: /\bEXPORT\b/i,       label: "EXPORT" },
-  { pattern: /\bIMPORT\b/i,       label: "IMPORT" },
-  { pattern: /\bCALL\b/i,         label: "CALL (procedure)" },
-  { pattern: /\bEXECUTE\b/i,      label: "EXECUTE" },
-  { pattern: /\bPRAGMA\b/i,       label: "PRAGMA" },
-  { pattern: /\bSET\b\s+\w/i,     label: "SET (session variable)" },
-  // DuckDB file-reading table functions — dangerous even in SELECT
-  { pattern: /\bread_csv\s*\(/i,    label: "read_csv()" },
-  { pattern: /\bread_csv_auto\s*\(/i, label: "read_csv_auto()" },
-  { pattern: /\bread_parquet\s*\(/i, label: "read_parquet()" },
-  { pattern: /\bread_json\s*\(/i,   label: "read_json()" },
-  { pattern: /\bread_json_auto\s*\(/i, label: "read_json_auto()" },
-  { pattern: /\bscan\s*\(/i,        label: "scan()" },
-  { pattern: /\bglob\s*\(/i,        label: "glob()" },
+const HOST_ESCAPE_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
+  { pattern: /\bINSTALL\b/i,        label: "INSTALL" },
+  { pattern: /\bLOAD\b/i,           label: "LOAD" },
+  { pattern: /\bATTACH\b/i,         label: "ATTACH" },
+  { pattern: /\bDETACH\b/i,         label: "DETACH" },
   { pattern: /\bgetenv\s*\(/i,      label: "getenv()" },
   { pattern: /\bshell\s*\(/i,       label: "shell()" },
   { pattern: /\bsystem\s*\(/i,      label: "system()" },
+  { pattern: /\bscan\s*\(/i,        label: "scan()" },
+  { pattern: /\bglob\s*\(/i,        label: "glob()" },
 ];
 
 /**
- * Returns { safe: true } if `sql` is a single SELECT / WITH...SELECT statement
- * with no dangerous constructs. Otherwise returns { safe: false, reason }.
+ * Detect whether a query performs data/schema mutation.
+ */
+export function isMutationQuery(sql: string): {
+  isMutation: boolean;
+  type?: GuardResult["mutationType"];
+  targetTable?: string;
+} {
+  if (!sql || typeof sql !== "string") return { isMutation: false };
+
+  const stripped = _stripStringLiterals(sql).trim();
+
+  // 1. DELETE
+  const deleteMatch = stripped.match(/^\s*DELETE\s+FROM\s+["']?([a-zA-Z0-9_]+)["']?/i);
+  if (deleteMatch) {
+    return { isMutation: true, type: "DELETE", targetTable: deleteMatch[1] };
+  }
+
+  // 2. DROP TABLE
+  const dropMatch = stripped.match(/^\s*DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?["']?([a-zA-Z0-9_]+)["']?/i);
+  if (dropMatch) {
+    return { isMutation: true, type: "DROP", targetTable: dropMatch[1] };
+  }
+
+  // 3. UPDATE
+  const updateMatch = stripped.match(/^\s*UPDATE\s+["']?([a-zA-Z0-9_]+)["']?/i);
+  if (updateMatch) {
+    return { isMutation: true, type: "UPDATE", targetTable: updateMatch[1] };
+  }
+
+  // 4. TRUNCATE
+  const truncateMatch = stripped.match(/^\s*TRUNCATE\s+(?:TABLE\s+)?["']?([a-zA-Z0-9_]+)["']?/i);
+  if (truncateMatch) {
+    return { isMutation: true, type: "TRUNCATE", targetTable: truncateMatch[1] };
+  }
+
+  // 5. INSERT
+  const insertMatch = stripped.match(/^\s*INSERT\s+INTO\s+["']?([a-zA-Z0-9_]+)["']?/i);
+  if (insertMatch) {
+    return { isMutation: true, type: "INSERT", targetTable: insertMatch[1] };
+  }
+
+  // 6. ALTER TABLE
+  const alterMatch = stripped.match(/^\s*ALTER\s+TABLE\s+["']?([a-zA-Z0-9_]+)["']?/i);
+  if (alterMatch) {
+    return { isMutation: true, type: "ALTER", targetTable: alterMatch[1] };
+  }
+
+  // 7. CREATE TABLE
+  const createMatch = stripped.match(/^\s*CREATE\s+(?:OR\s+REPLACE\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["']?([a-zA-Z0-9_]+)["']?/i);
+  if (createMatch) {
+    return { isMutation: true, type: "CREATE", targetTable: createMatch[1] };
+  }
+
+  // Check if any mutation keyword appears as first token
+  if (/^\s*(DELETE|UPDATE|DROP|INSERT|TRUNCATE|ALTER)\b/i.test(stripped)) {
+    return { isMutation: true, type: "UPDATE" };
+  }
+
+  return { isMutation: false };
+}
+
+/**
+ * Validates SQL query safety:
+ *   - Permits all SQL operations (SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, TRUNCATE)
+ *   - Identifies data mutation queries for confirmation & backup flow
+ *   - Blocks dangerous host escape functions (system(), shell(), getenv(), etc.)
  */
 export function guardQuery(sql: string): GuardResult {
   if (!sql || typeof sql !== "string") {
     return { safe: false, reason: "SQL is empty or not a string." };
   }
 
-  // Strip string literals before checking patterns to avoid false positives
-  // on data like "DROP TABLE" appearing in a string value.
   const stripped = _stripStringLiterals(sql);
   const trimmed = stripped.trim();
 
-  // 1. Must start with SELECT or WITH (for CTEs like: WITH cte AS (...) SELECT ...)
-  if (!/^(SELECT|WITH)\b/i.test(trimmed)) {
-    const firstWord = trimmed.split(/\s+/)[0]?.toUpperCase() ?? "";
-    return {
-      safe: false,
-      reason: `Only SELECT queries are allowed. Got: ${firstWord || "(empty)"}`,
-    };
-  }
-
-  // 2. Block dangerous keywords/functions
-  for (const { pattern, label } of BLOCKED_PATTERNS) {
+  // 1. Block true host escape vectors
+  for (const { pattern, label } of HOST_ESCAPE_PATTERNS) {
     if (pattern.test(trimmed)) {
       return {
         safe: false,
-        reason: `Query contains a blocked construct: "${label}". Only read-only SELECT is allowed.`,
+        reason: `Query contains a blocked host-level construct: "${label}".`,
       };
     }
   }
 
-  // 3. Multi-statement check — a semicolon followed by non-whitespace = second statement
+  // 2. Multi-statement check (semicolon followed by non-whitespace)
   if (/;\s*\S/.test(trimmed)) {
     return {
       safe: false,
-      reason: "Multi-statement queries are not allowed. Send a single SELECT.",
+      reason: "Multi-statement queries are not allowed. Please execute one statement at a time.",
     };
   }
 
-  // 4. SQL comment check — comments can be used to obscure blocked keywords
+  // 3. SQL comment check
   if (/--/.test(trimmed) || /\/\*/.test(trimmed)) {
     return {
       safe: false,
-      reason: "SQL comments are not allowed (they can be used to obscure restricted keywords).",
+      reason: "SQL comments are not allowed (to prevent hidden command injection).",
     };
   }
 
-  return { safe: true };
+  // 4. Mutation detection
+  const mutation = isMutationQuery(sql);
+  if (mutation.isMutation) {
+    return {
+      safe: true,
+      isMutation: true,
+      mutationType: mutation.type,
+      targetTable: mutation.targetTable,
+    };
+  }
+
+  return { safe: true, isMutation: false };
 }
 
 /**
- * Strip single-quoted and double-quoted string literals from SQL to prevent
- * false positives on data values containing blocked keywords.
- *
- * Replaces content inside quotes with underscores of the same length
- * so that offset-based error reporting still works.
+ * Strip string literals to prevent false positives when keywords appear inside values.
  */
 function _stripStringLiterals(sql: string): string {
-  // Replace 'single quoted strings' — handles '' escaped quotes
   let result = sql.replace(/'(?:[^']|'')*'/g, (m) => "'" + "_".repeat(m.length - 2) + "'");
-  // Replace "double quoted identifiers" — these are identifiers, not values,
-  // but we still want to neutralise their content for pattern matching
   result = result.replace(/"(?:[^"]|"")*"/g, (m) => '"' + "_".repeat(m.length - 2) + '"');
   return result;
 }

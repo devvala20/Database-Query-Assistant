@@ -70,29 +70,53 @@ describe("guardQuery — safe queries", () => {
   });
 });
 
+// ─── Mutation inputs (should be permitted & flagged for confirmation) ───────
+
+describe("guardQuery — mutations (permitted with confirmation flag)", () => {
+  it("identifies DROP TABLE as mutation with target table", () => {
+    const res = guardQuery("DROP TABLE sales");
+    expect(res.safe).toBe(true);
+    expect(res.isMutation).toBe(true);
+    expect(res.mutationType).toBe("DROP");
+    expect(res.targetTable).toBe("sales");
+  });
+
+  it("identifies DELETE FROM as mutation with target table", () => {
+    const res = guardQuery("DELETE FROM users WHERE id = 1");
+    expect(res.safe).toBe(true);
+    expect(res.isMutation).toBe(true);
+    expect(res.mutationType).toBe("DELETE");
+    expect(res.targetTable).toBe("users");
+  });
+
+  it("identifies INSERT INTO as mutation with target table", () => {
+    const res = guardQuery("INSERT INTO t VALUES (1)");
+    expect(res.safe).toBe(true);
+    expect(res.isMutation).toBe(true);
+    expect(res.mutationType).toBe("INSERT");
+    expect(res.targetTable).toBe("t");
+  });
+
+  it("identifies UPDATE as mutation with target table", () => {
+    const res = guardQuery("UPDATE t SET a = 1");
+    expect(res.safe).toBe(true);
+    expect(res.isMutation).toBe(true);
+    expect(res.mutationType).toBe("UPDATE");
+    expect(res.targetTable).toBe("t");
+  });
+
+  it("identifies CREATE TABLE as mutation with target table", () => {
+    const res = guardQuery("CREATE TABLE x (id INT)");
+    expect(res.safe).toBe(true);
+    expect(res.isMutation).toBe(true);
+    expect(res.mutationType).toBe("CREATE");
+    expect(res.targetTable).toBe("x");
+  });
+});
+
 // ─── Hostile inputs (should be blocked) ──────────────────────────────────────
 
 describe("guardQuery — hostile inputs", () => {
-  it("blocks DROP TABLE", () => {
-    expect(guardQuery("DROP TABLE sales").safe).toBe(false);
-  });
-
-  it("blocks DELETE FROM", () => {
-    expect(guardQuery("DELETE FROM users WHERE id = 1").safe).toBe(false);
-  });
-
-  it("blocks INSERT INTO", () => {
-    expect(guardQuery("INSERT INTO t VALUES (1)").safe).toBe(false);
-  });
-
-  it("blocks UPDATE", () => {
-    expect(guardQuery("UPDATE t SET a = 1").safe).toBe(false);
-  });
-
-  it("blocks CREATE TABLE", () => {
-    expect(guardQuery("CREATE TABLE x (id INT)").safe).toBe(false);
-  });
-
   it("blocks ATTACH", () => {
     expect(guardQuery("ATTACH 'data.db'").safe).toBe(false);
   });
@@ -142,7 +166,7 @@ describe("guardQuery — hostile inputs", () => {
   });
 
   it("returns a human-readable reason on failure", () => {
-    const result = guardQuery("DROP TABLE sales");
+    const result = guardQuery("ATTACH 'secret.db'");
     expect(result.safe).toBe(false);
     expect(result.reason).toBeTruthy();
     expect(typeof result.reason).toBe("string");
