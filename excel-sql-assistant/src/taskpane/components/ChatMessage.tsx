@@ -50,7 +50,7 @@ export default function ChatMessage({ message, onRunSql, onExplainSql }: Props) 
         {message.payload && (
           <div className="chat-message__payload">
             {/* Assumptions (Phase 6) */}
-            {message.payload.assumptions.length > 0 && (
+            {message.payload.assumptions && message.payload.assumptions.length > 0 && (
               <div className="chat-message__assumptions">
                 <span className="chat-message__assumptions-label">Assumptions:</span>
                 <ul>
@@ -100,7 +100,7 @@ export default function ChatMessage({ message, onRunSql, onExplainSql }: Props) 
                 {message.payload.resultData && (
                   <ExportMenu
                     result={message.payload.resultData}
-                    sql={message.payload.sql}
+                    sql={message.payload.sql ?? ""}
                     question={message.text}
                     currentSheetName={message.payload.resultSheetName ?? ""}
                   />
