@@ -67,16 +67,6 @@ export async function askAi(request: AiRequest): Promise<AiResponse> {
       ? "llama-3.1-8b-instant"
       : "claude-3-5-sonnet-20241022");
 
-  // Early check: if no schemas exist at all, return clarification immediately without network calls
-  if (!request.schemas || request.schemas.length === 0) {
-    return {
-      sql: "",
-      explanation: "No tables are currently loaded.",
-      assumptions: [],
-      clarification: "Please load a CSV or an Excel range first before asking questions.",
-    };
-  }
-
   // Force mock mode if explicitly requested OR if no API key/proxy is provided
   const needsKey = provider === "anthropic" || provider === "gemini" || provider === "groq";
   if (provider === "mock" || (needsKey && !apiKey && !proxyUrl)) {
@@ -356,27 +346,114 @@ async function _simulateLatency(): Promise<void> {
 
 function _mockResponse(request: AiRequest): AiResponse {
   const firstTable = request.schemas[0];
+  const question = request.question.toLowerCase().trim();
 
+  // ── No tables loaded yet ────────────────────────────────────────────────────
   if (!firstTable) {
+    if (
+      question.includes("how") ||
+      question.includes("guide") ||
+      question.includes("what") ||
+      question.includes("help") ||
+      question.includes("explain") ||
+      question.includes("start") ||
+      question.includes("add")
+    ) {
+      return {
+        sql: "",
+        explanation:
+          "👋 **Welcome to SQL Assistant! Here is how to get started:**\n\n" +
+          "1. **Load Data**: Click **📂 CSV** to load a CSV file, or select cells in Excel and click **📋 Range**.\n" +
+          "2. **Add New Entries**: After loading a table, ask: *\"Add a new entry with...\"*, or click **➕ Add Entry** in the table panel.\n" +
+          "3. **Ask Any Question**: Ask in plain English (e.g., *\"Show top 5 by revenue\"* or *\"Total count grouped by category\"*).\n" +
+          "4. **Safety & Recycle Bin**: All modifications are backed up for 7 days in the ♻️ Recycle Bin.\n" +
+          "5. **Real AI Key**: Open **⚙️ Settings** to enter a 100% free Google Gemini or Groq API key!",
+        assumptions: [
+          "ℹ️ [Mock Mode] Running with local simulated responses. Configure a free API key in ⚙️ Settings for live AI generation.",
+        ],
+        clarification: null,
+      };
+    }
     return {
       sql: "",
-      explanation: "No tables are loaded yet.",
+      explanation: "No tables are currently loaded.",
       assumptions: [],
-      clarification: "Please load a CSV file first, then ask your question.",
+      clarification: "Please click 📂 CSV or 📋 Range to load data first, or ask for guidance on how to get started!",
     };
   }
 
   const tableName = firstTable.tableName;
   const cols = firstTable.columns;
-  const question = request.question.toLowerCase();
 
-  let sql: string;
-  let explanation: string;
+  let sql = "";
+  let explanation = "";
 
-  if (question.includes("count") || question.includes("how many")) {
+  // ── 1. User asking for guidance or "how to" ─────────────────────────────────
+  if (
+    question.includes("how") ||
+    question.includes("guide") ||
+    question.includes("help") ||
+    question.includes("explain") ||
+    question.includes("step")
+  ) {
+    if (question.includes("add") || question.includes("insert") || question.includes("entry") || question.includes("row")) {
+      explanation =
+        `📝 **How to add a new entry to "${tableName}":**\n\n` +
+        `• **Via Chat (Plain English)**: Type \`Add a new entry with [values]\` (e.g., \`Add a new entry to ${tableName} with ${cols.slice(0, 3).map((c) => c.name).join(", ")}\`).\n` +
+        `• **Via SQL**: Run a direct SQL command like \`INSERT INTO "${tableName}" VALUES (...)\`.\n` +
+        `• **Via UI Form**: Click the **➕ Add Entry** button next to "${tableName}" in the Loaded Tables panel above.\n\n` +
+        `🛡️ *Before any modification runs, you will be prompted to confirm, and a safety snapshot is preserved in the ♻️ Recycle Bin for 7 days.*`;
+    } else {
+      explanation =
+        `💡 **Guide for "${tableName}":**\n\n` +
+        `• **Available Columns**: ${cols.map((c) => `\`${c.name}\` (${c.type})`).join(", ")}\n` +
+        `• **Example Queries to Try**:\n` +
+        `   - *"How many rows are in ${tableName}?"*\n` +
+        `   - *"Show the first 10 rows"*\n` +
+        `   - *"Show columns and data types"*\n` +
+        `   - *"Add a new entry to ${tableName}"*\n` +
+        `• **Writing to Excel**: When running SELECT queries, results automatically export to a fresh Excel sheet with filters and formatting!`;
+    }
+    return {
+      sql: "",
+      explanation,
+      assumptions: [
+        "ℹ️ [Mock Mode] Displaying guidance for the loaded table. Connect an API key in ⚙️ Settings for AI-powered multi-step analysis.",
+      ],
+      clarification: null,
+    };
+  }
+
+  // ── 2. User wants to add a new entry / insert row ───────────────────────────
+  if (
+    question.includes("add") ||
+    question.includes("insert") ||
+    question.includes("new entry") ||
+    question.includes("new row") ||
+    question.includes("create entry")
+  ) {
+    const targetCols = cols.slice(0, Math.min(cols.length, 5));
+    const colNames = targetCols.map((c) => `"${c.name}"`).join(", ");
+    const colVals = targetCols
+      .map((c, i) => {
+        if (c.type.includes("INT") || c.type.includes("BIGINT")) return String(100 + i);
+        if (c.type.includes("DOUBLE") || c.type.includes("FLOAT") || c.type.includes("DECIMAL") || c.type.includes("NUMERIC")) return String((99.5 + i).toFixed(2));
+        if (c.type.includes("BOOL")) return "true";
+        if (c.type.includes("DATE")) return "'2024-10-11'";
+        return `'Sample ${c.name}'`;
+      })
+      .join(", ");
+
+    sql = `INSERT INTO "${tableName}" (${colNames}) VALUES (${colVals})`;
+    explanation = `Inserts a new entry into the "${tableName}" table with sample column values.`;
+  }
+  // ── 3. Counting rows ────────────────────────────────────────────────────────
+  else if (question.includes("count") || question.includes("how many")) {
     sql = `SELECT COUNT(*) AS row_count FROM "${tableName}"`;
     explanation = `Returns the total number of rows in the "${tableName}" table.`;
-  } else if (question.includes("top") || question.includes("most")) {
+  }
+  // ── 4. Top / grouping ───────────────────────────────────────────────────────
+  else if (question.includes("top") || question.includes("most") || question.includes("highest")) {
     const numCol = cols.find(
       (c) =>
         c.type.includes("INT") ||
@@ -394,14 +471,18 @@ function _mockResponse(request: AiRequest): AiResponse {
       sql = `SELECT * FROM "${tableName}" LIMIT 10`;
       explanation = `Returns the first 10 rows from "${tableName}".`;
     }
-  } else if (
+  }
+  // ── 5. Schema / columns ─────────────────────────────────────────────────────
+  else if (
     question.includes("column") ||
     question.includes("schema") ||
     question.includes("field")
   ) {
     sql = `DESCRIBE "${tableName}"`;
     explanation = `Shows all column names and data types in the "${tableName}" table.`;
-  } else {
+  }
+  // ── 6. Default preview ──────────────────────────────────────────────────────
+  else {
     sql = `SELECT * FROM "${tableName}" LIMIT 100`;
     explanation = `Returns the first 100 rows from the "${tableName}" table.`;
   }
@@ -411,9 +492,9 @@ function _mockResponse(request: AiRequest): AiResponse {
     explanation,
     assumptions: [
       `ℹ️ [Mock Mode] No API Key configured for ${request.aiProvider || "AI"}.`,
-      `To generate real SQL from plain English, open ⚙️ Settings and enter an API Key.`,
+      `To generate custom SQL from plain English, open ⚙️ Settings and enter an API Key.`,
       `Tip: Google Gemini and Groq provide 100% FREE API keys with no credit card required!`,
-      `You can also run custom SQL queries directly anytime by typing "SELECT ...".`,
+      `You can also run custom SQL queries directly anytime by typing "SELECT ...", "INSERT ...", etc.`,
     ],
     clarification: null,
   };

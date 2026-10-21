@@ -72,4 +72,20 @@ describe("Prompt Builder", () => {
     expect(req.question).toContain('Binder Error: Column "rev" not found');
     expect(req.repair?.failedSql).toBe("SELECT rev FROM sales");
   });
+
+  it("SYSTEM_PROMPT includes instructions for adding entries and user guidance", () => {
+    expect(SYSTEM_PROMPT).toContain("INSERT INTO");
+    expect(SYSTEM_PROMPT).toContain("Guidance & Answering Questions");
+  });
+
+  it("buildProxyRequest provides fallback when no schemas are loaded yet", () => {
+    const ctx: PromptContext = {
+      question: "How do I use this extension?",
+      schemas: [],
+      history: [],
+    };
+    const req = buildProxyRequest(ctx);
+    expect(req.schema).toContain("No tables are currently loaded");
+  });
 });
+

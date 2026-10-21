@@ -25,6 +25,8 @@ import HistoryPanel from "./components/HistoryPanel";
 import SettingsPanel from "./components/SettingsPanel";
 import ConfirmationModal from "./components/ConfirmationModal";
 import BackupsModal from "./components/BackupsModal";
+import AddEntryModal from "./components/AddEntryModal";
+import type { TableSchema } from "../data/schema";
 import { initEngine } from "../sql/engine";
 import { safeRunQuery, CancelToken, QueryGuardError, QueryTimeoutError, QueryCancelledError } from "../sql/runner";
 import { isMutationQuery } from "../sql/guard";
@@ -56,6 +58,10 @@ function TaskPane() {
   } | null>(null);
 
   const [showBackupsModal, setShowBackupsModal] = useState(false);
+  const [addEntryTarget, setAddEntryTarget] = useState<{
+    tableName: string;
+    schema: TableSchema;
+  } | null>(null);
 
   const confirmMutation = useCallback(
     (sql: string, operationType: string, targetTable?: string): Promise<boolean> => {
@@ -188,19 +194,42 @@ function TaskPane() {
           timeoutMs: state.settings.timeoutMs,
           cancelToken,
         });
-        const writeResult = await writeResultsToSheet(result, sql, {
-          mode: state.settings.defaultWriteMode,
-          sql,
-          writeSqlNote: true,
-          onProgress: (written, total) => {
-            dispatch({
-              type: "SET_LOADING",
-              loading: true,
-              message: `Writing to Excel… ${Math.round((written / total) * 100)}%`,
-            });
-          },
-        });
-        const sheetName = writeResult.sheetName;
+
+        // If mutation, refresh table row count in UI store
+        if (mutation.isMutation && mutation.targetTable) {
+          try {
+            const { getConnection } = await import("../sql/engine");
+            const conn = getConnection();
+            if (conn) {
+              const countRes = await conn.query(`SELECT COUNT(*) AS n FROM "${mutation.targetTable}"`);
+              const newCount = Number(countRes.toArray()[0].n);
+              dispatch({
+                type: "UPDATE_TABLE_ROW_COUNT",
+                tableName: mutation.targetTable,
+                rowCount: newCount,
+              });
+            }
+          } catch {}
+        }
+
+        let sheetName: string | undefined;
+        let elapsedMs = 0;
+        if (!mutation.isMutation || result.columns.length > 1) {
+          const writeResult = await writeResultsToSheet(result, sql, {
+            mode: state.settings.defaultWriteMode,
+            sql,
+            writeSqlNote: true,
+            onProgress: (written, total) => {
+              dispatch({
+                type: "SET_LOADING",
+                loading: true,
+                message: `Writing to Excel… ${Math.round((written / total) * 100)}%`,
+              });
+            },
+          });
+          sheetName = writeResult.sheetName;
+          elapsedMs = writeResult.elapsedMs;
+        }
 
         const explanation = mutation.isMutation
           ? `Executed ${mutation.type || "operation"} successfully on ${mutation.targetTable ? `"${mutation.targetTable}"` : "table"}. A safety snapshot is preserved in the Recycle Bin for 7 days.`
@@ -220,7 +249,7 @@ function TaskPane() {
               resultSheetName: sheetName,
               rowCount: result.rowCount,
               fullRowCount: result.fullRowCount,
-              elapsedMs: writeResult.elapsedMs,
+              elapsedMs,
               truncated: result.truncated,
               resultData: {
                 columns: result.columns,
@@ -275,8 +304,8 @@ function TaskPane() {
       if (state.isLoading || state.engineStatus !== "ready") return;
 
       const trimmed = question.trim();
-      // If the user typed a raw SQL query (e.g. SELECT ..., WITH ..., DESCRIBE ...), execute it directly
-      if (/^\s*(SELECT|WITH|DESCRIBE|SHOW|PRAGMA|EXPLAIN\s+(QUERY\s+PLAN|ANALYZE|SELECT))\b/i.test(trimmed)) {
+      // If the user typed a raw SQL query (e.g. SELECT ..., INSERT ..., UPDATE ..., CREATE ...), execute it directly
+      if (/^\s*(SELECT|WITH|DESCRIBE|SHOW|PRAGMA|EXPLAIN|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE)\b/i.test(trimmed)) {
         void handleRunSqlDirectly(trimmed);
         return;
       }
@@ -336,7 +365,7 @@ function TaskPane() {
         );
 
         // Model asked for clarification
-        if (response.clarification) {
+        if (response.clarification && !response.sql) {
           dispatch({
             type: "ADD_MESSAGE",
             message: createMessage("clarification", response.clarification),
@@ -349,21 +378,63 @@ function TaskPane() {
           return;
         }
 
-        // Write results to Excel (Phase 7 — chunked, type-aware)
-        dispatch({ type: "SET_LOADING", loading: true, message: "Writing to Excel…" });
-        const writeResult = await writeResultsToSheet(result, question, {
-          mode: state.settings.defaultWriteMode,
-          sql: response.sql,
-          writeSqlNote: true,
-          onProgress: (written, total) => {
-            dispatch({
-              type: "SET_LOADING",
-              loading: true,
-              message: `Writing to Excel… ${Math.round((written / total) * 100)}%`,
-            });
-          },
-        });
-        const sheetName = writeResult.sheetName;
+        // Guidance / instructions / conversational answer without SQL execution
+        if (!response.sql) {
+          const content = response.explanation || response.clarification || "Here is the guidance for your request.";
+          dispatch({
+            type: "ADD_MESSAGE",
+            message: createMessage("assistant", content, {
+              sql: "",
+              explanation: response.explanation,
+              assumptions: response.assumptions,
+            }),
+          });
+          conversationHistory.current.push(
+            { role: "user", content: question },
+            { role: "assistant", content }
+          );
+          return;
+        }
+
+        const mutation = isMutationQuery(response.sql);
+
+        // If mutation, refresh table row count in UI store
+        if (mutation.isMutation && mutation.targetTable) {
+          try {
+            const { getConnection } = await import("../sql/engine");
+            const conn = getConnection();
+            if (conn) {
+              const countRes = await conn.query(`SELECT COUNT(*) AS n FROM "${mutation.targetTable}"`);
+              const newCount = Number(countRes.toArray()[0].n);
+              dispatch({
+                type: "UPDATE_TABLE_ROW_COUNT",
+                tableName: mutation.targetTable,
+                rowCount: newCount,
+              });
+            }
+          } catch {}
+        }
+
+        // Write results to Excel (Phase 7) — skip sheet creation for scalar mutation counters
+        let sheetName: string | undefined;
+        let elapsedMs = result.elapsedMs;
+        if (!mutation.isMutation || result.columns.length > 1) {
+          dispatch({ type: "SET_LOADING", loading: true, message: "Writing to Excel…" });
+          const writeResult = await writeResultsToSheet(result, question, {
+            mode: state.settings.defaultWriteMode,
+            sql: response.sql,
+            writeSqlNote: true,
+            onProgress: (written, total) => {
+              dispatch({
+                type: "SET_LOADING",
+                loading: true,
+                message: `Writing to Excel… ${Math.round((written / total) * 100)}%`,
+              });
+            },
+          });
+          sheetName = writeResult.sheetName;
+          elapsedMs = writeResult.elapsedMs;
+        }
 
         // Add assistant message with cached resultData for re-export (Phase 7)
         dispatch({
@@ -375,7 +446,7 @@ function TaskPane() {
             resultSheetName: sheetName,
             rowCount: result.rowCount,
             fullRowCount: result.fullRowCount,
-            elapsedMs: writeResult.elapsedMs,
+            elapsedMs,
             truncated: result.truncated,
             attemptsUsed,
             resultData: {
@@ -406,7 +477,7 @@ function TaskPane() {
         // Phase 8: Safe telemetry (zero content leakage)
         telemetry.track({
           type: attemptsUsed > 1 ? "query_repaired" : "query_executed",
-          elapsedMs: writeResult.elapsedMs,
+          elapsedMs,
           rowCountBucket: telemetry.toBucket(result.rowCount),
           repairAttempts: attemptsUsed,
           writeMode: state.settings.defaultWriteMode,
@@ -509,6 +580,7 @@ function TaskPane() {
           onLoadCsv={openFilePicker}
           onLoadWorkbookRange={handleLoadWorkbookRange}
           onOpenBackups={() => setShowBackupsModal(true)}
+          onAddEntry={(target) => setAddEntryTarget(target)}
         />
       )}
 
@@ -644,6 +716,34 @@ function TaskPane() {
             dispatch({
               type: "ADD_MESSAGE",
               message: createMessage("assistant", `Restored table "${tableName}" (${rowCount} rows) from safety backup.`),
+            });
+          }}
+        />
+      )}
+
+      {/* Add Entry Modal */}
+      {addEntryTarget && (
+        <AddEntryModal
+          tableName={addEntryTarget.tableName}
+          columns={addEntryTarget.schema.columns}
+          onClose={() => setAddEntryTarget(null)}
+          onSuccess={(newRowCount, sql) => {
+            dispatch({
+              type: "UPDATE_TABLE_ROW_COUNT",
+              tableName: addEntryTarget.tableName,
+              rowCount: newRowCount,
+            });
+            dispatch({
+              type: "ADD_MESSAGE",
+              message: createMessage(
+                "assistant",
+                `✅ Successfully added new entry to "${addEntryTarget.tableName}" (${newRowCount} total rows). A safety snapshot is preserved in the Recycle Bin for 7 days.`,
+                {
+                  sql,
+                  explanation: `Added new entry to "${addEntryTarget.tableName}".`,
+                  assumptions: [`Saved safety snapshot in Recycle Bin`],
+                }
+              ),
             });
           }}
         />

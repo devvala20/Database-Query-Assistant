@@ -57,10 +57,10 @@ export async function loadCsvFile(file: File): Promise<LoadedTable> {
   // Register the raw bytes under the original filename so DuckDB can reference it
   await db.registerFileBuffer(file.name, uint8);
 
-  // Create a VIEW (not a table) so we don't duplicate large files in WASM memory.
-  // read_csv_auto handles delimiters, BOM, types, quoted fields automatically.
+  // Create a mutable in-memory TABLE so that INSERT, UPDATE, DELETE, and ALTER
+  // operations work seamlessly. read_csv_auto automatically detects delimiters, headers, and types.
   await conn.query(`
-    CREATE OR REPLACE VIEW "${tableName}" AS
+    CREATE OR REPLACE TABLE "${tableName}" AS
     SELECT * FROM read_csv_auto('${file.name}', header=true, auto_detect=true)
   `);
 
@@ -82,5 +82,6 @@ export async function loadCsvFile(file: File): Promise<LoadedTable> {
 export async function dropTable(tableName: string): Promise<void> {
   const conn = getConnection();
   if (!conn) throw new Error("DuckDB engine not initialised.");
+  await conn.query(`DROP TABLE IF EXISTS "${tableName}"`);
   await conn.query(`DROP VIEW IF EXISTS "${tableName}"`);
 }

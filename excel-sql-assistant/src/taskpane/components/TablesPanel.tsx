@@ -4,6 +4,7 @@
 
 import { useState } from "react";
 import { dropTable } from "../../data/csvLoader";
+import type { TableSchema } from "../../data/schema";
 import { useStore } from "../state/useStore";
 import "./TablesPanel.css";
 
@@ -11,12 +12,14 @@ interface Props {
   onLoadCsv: () => void;
   onLoadWorkbookRange: () => void;
   onOpenBackups?: () => void;
+  onAddEntry?: (table: { tableName: string; schema: TableSchema }) => void;
 }
 
 export default function TablesPanel({
   onLoadCsv,
   onLoadWorkbookRange,
   onOpenBackups,
+  onAddEntry,
 }: Props) {
   const { state, dispatch } = useStore();
   const [expandedTable, setExpandedTable] = useState<string | null>(null);
@@ -113,6 +116,16 @@ export default function TablesPanel({
                     <span className="tables-panel__row-count">
                       {table.rowCount.toLocaleString()} rows
                     </span>
+                    {onAddEntry && (
+                      <button
+                        className="tables-panel__add-btn"
+                        onClick={() => onAddEntry({ tableName: table.tableName, schema: table.schema })}
+                        title={`Add a new entry to "${table.tableName}"`}
+                        aria-label={`Add entry to ${table.tableName}`}
+                      >
+                        ➕ Add
+                      </button>
+                    )}
                     {table.source === "csv" && (
                       <button
                         className="tables-panel__drop-btn"

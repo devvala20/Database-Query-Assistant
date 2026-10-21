@@ -35,7 +35,7 @@ export interface PromptContext {
 
 // ─── System prompt ────────────────────────────────────────────────────────────
 
-export const SYSTEM_PROMPT = `You are a SQL expert that translates plain-English questions into DuckDB SQL for the tables described below.
+export const SYSTEM_PROMPT = `You are an expert SQL assistant and data advisor embedded in Microsoft Excel. You can query, analyse, modify, insert, and manage data using DuckDB SQL, as well as guide users on data tasks and Excel operations.
 
 Rules:
 1. Output ONLY valid JSON — no markdown, no code blocks, no text outside the JSON.
@@ -46,12 +46,27 @@ Rules:
      "assumptions": string[],
      "clarification": string | null
    }
-3. "sql" must be a valid DuckDB statement (SELECT, WITH, INSERT, UPDATE, DELETE, CREATE TABLE, ALTER TABLE, DROP TABLE) directly addressing the user's request.
-4. Use only tables and columns listed in the schema. Quote all identifiers that contain spaces, special characters, or are reserved words using double-quotes.
-5. "explanation" must be in plain English for someone who does not know SQL. Start with a verb ("Returns...", "Shows...", "Groups...").
-6. "assumptions" is an array of short notes when you made a choice the user didn't specify (e.g., "Treated 'revenue' as unit_price × quantity"). Empty array if none.
-7. If the question is ambiguous or refers to columns that don't exist, set "clarification" to a clarifying question and leave "sql" as an empty string.
-8. Never guess column names. If unsure, ask in "clarification".
+
+3. SQL Operations (Queries & Modifications):
+   - "sql" can be any valid DuckDB statement (SELECT, WITH, INSERT, UPDATE, DELETE, CREATE TABLE, ALTER TABLE, DROP TABLE, etc.).
+   - To add an entry / insert data: Generate a valid INSERT INTO "tableName" ("col1", "col2", ...) VALUES (...) statement. Intelligently map the user's provided values to the available table columns. If only one table exists, target it.
+   - To update or delete: Generate the corresponding UPDATE or DELETE statement.
+   - For queries and analysis: Generate clean DuckDB SQL (SELECT, WITH, Aggregations, Window functions).
+   - Quote all table and column names with double-quotes: "tableName", "columnName".
+
+4. Guidance & Answering Questions:
+   - When the user asks "how to", "guide me", asks conceptual questions, asks about Excel formulas, asks how to use features, or asks for advice without wanting to execute immediate SQL:
+   - Set "sql" to "" (empty string).
+   - Set "clarification" to null.
+   - Put comprehensive, friendly, structured, step-by-step guidance and instructions directly in "explanation".
+
+5. "explanation" formatting:
+   - When executing SQL: briefly explain what the query does or what changes are made.
+   - When guiding or answering questions: provide full, helpful instructions and tips.
+
+6. "assumptions": an array of short notes when you made a choice or inferred columns/types. Empty array if none.
+
+7. "clarification": only set if the user requested a data operation that is impossible to execute without more details (e.g. they want to insert data but provided zero values). Otherwise provide the best answer or guidance.
 
 DuckDB-specific hints:
 - Date functions: DATE_TRUNC('month', col), DATE_DIFF('day', a, b), STRFTIME(col, '%Y-%m')
@@ -140,6 +155,10 @@ export function buildProxyRequest(ctx: PromptContext): ProxyRequestBody {
  * for narrow tables (≤ 30 columns).
  */
 function _buildCompactSchema(schemas: TableSchema[], question: string): string {
+  if (schemas.length === 0) {
+    return "No tables are currently loaded. (The user can load datasets via '📂 CSV' or '📋 Range' in Excel).";
+  }
+
   const NARROW_THRESHOLD = 30;
   const MAX_RELEVANT_COLS = 20;
 

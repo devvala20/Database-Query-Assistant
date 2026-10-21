@@ -26,9 +26,9 @@ import type { QueryResult } from "../../sql/engine";
 export type MessageRole = "user" | "assistant" | "error" | "system" | "clarification";
 
 export interface AssistantPayload {
-  sql: string;
-  explanation: string;
-  assumptions: string[];
+  sql?: string;
+  explanation?: string;
+  assumptions?: string[];
   resultSheetName?: string;
   rowCount?: number;
   fullRowCount?: number;
@@ -149,6 +149,7 @@ type Action =
   | { type: "REMOVE_CSV_TABLE"; tableName: string }
   | { type: "ADD_WORKBOOK_TABLE"; table: WorkbookTableInfo }
   | { type: "REMOVE_WORKBOOK_TABLE"; tableName: string }
+  | { type: "UPDATE_TABLE_ROW_COUNT"; tableName: string; rowCount: number }
   | { type: "ADD_HISTORY"; entry: HistoryEntry }
   | { type: "PIN_HISTORY"; id: string }
   | { type: "REMOVE_HISTORY"; id: string }
@@ -189,6 +190,20 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         workbookTables: state.workbookTables.filter(
           (t) => t.tableName !== action.tableName
+        ),
+      };
+    case "UPDATE_TABLE_ROW_COUNT":
+      return {
+        ...state,
+        csvTables: state.csvTables.map((t) =>
+          t.tableName.toLowerCase() === action.tableName.toLowerCase()
+            ? { ...t, rowCount: action.rowCount }
+            : t
+        ),
+        workbookTables: state.workbookTables.map((t) =>
+          t.tableName.toLowerCase() === action.tableName.toLowerCase()
+            ? { ...t, rowCount: action.rowCount }
+            : t
         ),
       };
     case "ADD_HISTORY": {
